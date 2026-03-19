@@ -1,17 +1,23 @@
 package com.camunda.worker;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.annotation.Variable;
 import io.camunda.client.api.response.ActivatedJob;
 import io.camunda.client.api.worker.JobClient;
 import java.util.Map;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ProcessPaymentWorker {
+
+    private final ObjectMapper objectMapper;
 
     /**
      * autoComplete = false — we drive all job outcomes manually:
@@ -27,8 +33,11 @@ public class ProcessPaymentWorker {
             @Variable double totalAmount,
             @Variable String paymentMethod,
             @Variable(optional = true) String paymentToken) {
-
-        log.info("[ProcessPayment] orderId={} amount={} method={}", orderId, totalAmount, paymentMethod);
+        try {
+            log.info("[ProcessPayment] orderId={} amount={} method={}, variable: {}", orderId, totalAmount, paymentMethod, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+        } catch (JsonProcessingException e) {
+            log.error("Error while print the message");
+        }
 
         // ── Missing / invalid token → BPMN error caught by boundary event ──────
         if (paymentToken == null || paymentToken.isBlank()) {

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 65" width="55" height="58">
+  <!-- diamond shape -->
+  <polygon points="30,3 57,30 30,57 3,30" fill="white" stroke="#333" stroke-width="1.8"/>
+  <!-- asterisk (*) mark inside -->
+  <!-- vertical bar -->
+  <line x1="30" y1="18" x2="30" y2="42" stroke="#333" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- horizontal bar -->
+  <line x1="18" y1="30" x2="42" y2="30" stroke="#333" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- diagonal top-left to bottom-right -->
+  <line x1="21" y1="21" x2="39" y2="39" stroke="#333" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- diagonal top-right to bottom-left -->
+  <line x1="39" y1="21" x2="21" y2="39" stroke="#333" stroke-width="2.8" stroke-linecap="round"/>
+  <text x="30" y="62" text-anchor="middle" font-size="9" fill="#555" font-family="Arial">Complex</text>
+</svg>

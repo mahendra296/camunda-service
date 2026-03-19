@@ -94,6 +94,75 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ---
 
+### 1.4 Inclusive Gateway (OR)
+
+![Inclusive Gateway](images/bpmn/gateway-inclusive.svg)
+
+> **Symbol:** Diamond shape with an **O** (circle) inside. Routes flow down one or more outgoing paths based on evaluated conditions.
+
+**Purpose:** Splits the process into one or more parallel branches where every path whose condition evaluates to `true` is activated. On the merge side, it waits for all activated branches to complete before continuing — unlike a parallel gateway, it only waits for branches that were actually started.
+
+**Example Scenario:** After a risk assessment, an order may require "Credit Check" only, "Fraud Check" only, or both — depending on the order value and customer tier. All matching checks run in parallel; the process continues when all triggered checks are done.
+
+**XML:**
+```xml
+<inclusiveGateway id="Gateway_RiskSplit" name="Which checks needed?"/>
+<inclusiveGateway id="Gateway_RiskJoin" name="All checks done"/>
+
+<sequenceFlow sourceRef="Gateway_RiskSplit" targetRef="Task_CreditCheck">
+  <conditionExpression>= orderValue > 1000</conditionExpression>
+</sequenceFlow>
+<sequenceFlow sourceRef="Gateway_RiskSplit" targetRef="Task_FraudCheck">
+  <conditionExpression>= customerTier = "NEW"</conditionExpression>
+</sequenceFlow>
+<sequenceFlow sourceRef="Gateway_RiskSplit" targetRef="Task_IDVerification"
+  zeebe:defaultFlow="true"/>
+
+<sequenceFlow sourceRef="Task_CreditCheck" targetRef="Gateway_RiskJoin"/>
+<sequenceFlow sourceRef="Task_FraudCheck" targetRef="Gateway_RiskJoin"/>
+<sequenceFlow sourceRef="Task_IDVerification" targetRef="Gateway_RiskJoin"/>
+```
+
+**Key Notes:**
+- **At least one** path must always be eligible — always define a default flow to prevent a dead token if no condition matches.
+- The **joining** inclusive gateway waits only for branches that were activated at the corresponding split, not all incoming flows.
+- More flexible than a parallel gateway (not all paths required) and more powerful than an exclusive gateway (multiple paths allowed).
+- Camunda 8 tracks which branches were activated to correctly synchronize the join — split and join must be properly paired.
+
+---
+
+### 1.5 Complex Gateway
+
+![Complex Gateway](images/bpmn/gateway-complex.svg)
+
+> **Symbol:** Diamond shape with an **asterisk (\*)** inside. Used when routing logic is too complex to express with other gateway types.
+
+**Purpose:** Allows custom, complex routing conditions for both splitting and merging that cannot be represented by exclusive, parallel, or inclusive gateways. The activation semantics are defined by a custom activation condition expression rather than standard rules.
+
+**Example Scenario:** In a multi-department approval process, the flow should continue as soon as any **two out of three** departments have completed their review — not all three (parallel) and not just one (exclusive). A complex gateway merge with an activation condition `= completedCount >= 2` handles this.
+
+**XML:**
+```xml
+<!-- Complex Gateway used as a merge with a custom activation condition -->
+<complexGateway id="Gateway_MajorityApproval" name="2 of 3 approved?"
+  activationCondition="= completedDepartments >= 2">
+</complexGateway>
+
+<sequenceFlow sourceRef="Task_FinanceReview" targetRef="Gateway_MajorityApproval"/>
+<sequenceFlow sourceRef="Task_LegalReview" targetRef="Gateway_MajorityApproval"/>
+<sequenceFlow sourceRef="Task_OpsReview" targetRef="Gateway_MajorityApproval"/>
+<sequenceFlow sourceRef="Gateway_MajorityApproval" targetRef="Task_FinalApproval"/>
+```
+
+**Key Notes:**
+- Use a complex gateway **only when no simpler gateway type fits** — it adds cognitive overhead and is harder to maintain.
+- The `activationCondition` expression defines when the gateway fires on the merge side (e.g., after N of M branches arrive).
+- On the split side, custom conditions can activate any combination of outgoing paths — similar to an inclusive gateway but with fully custom logic.
+- **Camunda 8 support is limited** — complex gateways are part of the BPMN 2.0 spec but may require workarounds (e.g., using a script task with counter variables + inclusive gateway) in practice.
+- Prefer modelling the same behaviour with a combination of inclusive and parallel gateways where possible for better engine compatibility.
+
+---
+
 ## 2. Tasks
 
 ### 2.1 Task
@@ -1434,6 +1503,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 | Parallel (AND) | + | All paths |
 | Inclusive (OR) | O | One or more paths |
 | Event-Based | Circles/pentagon | First event wins |
+| Complex | * | Custom activation condition |
 
 ### Task Type Icons
 

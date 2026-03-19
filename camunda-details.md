@@ -389,7 +389,7 @@ Sends a **message** to another process or system.
 
 **Sending a message via API:**
 ```java
-zeebeClient.newPublishMessageCommand()
+camundaClient.newPublishMessageCommand()
     .messageName("Message_PaymentReceived")
     .correlationKey(orderId)
     .variables(Map.of("paymentStatus", "SUCCESS"))
@@ -616,7 +616,7 @@ Variables are the **data** that flows through a process instance.
 
 ```java
 // Starting a process with variables
-zeebeClient.newCreateInstanceCommand()
+camundaClient.newCreateInstanceCommand()
     .bpmnProcessId("order-process")
     .latestVersion()
     .variables(Map.of(
@@ -710,7 +710,7 @@ Used to **undo** completed work when something goes wrong.
 Messages link events and tasks across different process instances.
 
 ```java
-zeebeClient.newPublishMessageCommand()
+camundaClient.newPublishMessageCommand()
     .messageName("Message_PaymentReceived")
     .correlationKey("ORD-12345")  // Must match the process variable
     .variables(Map.of(

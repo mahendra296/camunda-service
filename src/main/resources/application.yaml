@@ -34,6 +34,4 @@ camunda:
     mode: selfmanaged
     grpc-address: grpc://${ZEEBE_HOST:localhost}:26500
     rest-address: http://${ZEEBE_HOST:localhost}:8080
-    deployment:
-      resources: "classpath:workflow/*.bpmn"
 

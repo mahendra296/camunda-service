@@ -46,7 +46,7 @@ public class GlobalExceptionHandler {
 
     // ─── 503 – Zeebe / Camunda gRPC communication failure ────────────────────
     @ExceptionHandler(ClientStatusException.class)
-    public ResponseEntity<Map<String, Object>> handleZeebeClient(
+    public ResponseEntity<Map<String, Object>> handlecamundaClient(
             ClientStatusException ex, WebRequest request) {
 
         log.error("[GlobalExceptionHandler] Zeebe client error: status={} message={}",
