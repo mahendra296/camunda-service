@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: camunda-service
+  profiles:
+    active: local
+
+  # ── Database ────────────────────────────────────────────────────────────────
+  datasource:
+    url: ${DATASOURCE_URL}
+    driver-class-name: ${DATASOURCE_DRIVER_CLASS}
+    username: ${DATASOURCE_USERNAME}
+    password: ${DATASOURCE_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_batch_fetch_size: 50
+
+  liquibase:
+    change-log: classpath:/db/changelog-master.xml
+    enabled: false
+
+server:
+  port: 8081
+
+# ── Camunda 8 Local (Self-Managed) ───────────────────────────────────────────
+camunda:
+  client:
+    mode: selfmanaged
+    grpc-address: grpc://${ZEEBE_HOST:localhost}:26500
+    rest-address: http://${ZEEBE_HOST:localhost}:8080
+    deployment:
+      resources: "classpath:workflow/*.bpmn"
+

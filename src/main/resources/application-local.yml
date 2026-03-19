@@ -1,0 +1,6 @@
+# ── Database ──────────────────────────────────────────────────────────────────
+DATASOURCE_URL: jdbc:postgresql://localhost:5432/camundadb
+DATASOURCE_DRIVER_CLASS: org.postgresql.Driver
+DATASOURCE_USERNAME: postgres
+DATASOURCE_PASSWORD: root
+

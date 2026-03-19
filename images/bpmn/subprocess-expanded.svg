@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80" viewBox="0 0 160 70">
+  <!-- Outer border -->
+  <rect x="2" y="2" width="156" height="66" rx="5" fill="white" stroke="#333" stroke-width="1.5"/>
+  <!-- Label at top -->
+  <text x="80" y="14" font-family="Arial, sans-serif" font-size="8" fill="#333" text-anchor="middle">Sub-Process (Expanded)</text>
+  <!-- Mini start event -->
+  <circle cx="22" cy="40" r="8" fill="white" stroke="#333" stroke-width="1.2"/>
+  <!-- Arrow connector -->
+  <line x1="30" y1="40" x2="50" y2="40" stroke="#333" stroke-width="1" marker-end="url(#arr)"/>
+  <!-- Mini task -->
+  <rect x="50" y="33" width="28" height="14" rx="2" fill="white" stroke="#333" stroke-width="1"/>
+  <text x="64" y="41.5" font-family="Arial, sans-serif" font-size="6" fill="#333" text-anchor="middle">Task</text>
+  <!-- Arrow connector 2 -->
+  <line x1="78" y1="40" x2="98" y2="40" stroke="#333" stroke-width="1" marker-end="url(#arr)"/>
+  <!-- Mini end event -->
+  <circle cx="108" cy="40" r="8" fill="white" stroke="#333" stroke-width="2.5"/>
+  <!-- [+] marker at bottom -->
+  <rect x="72" y="55" width="16" height="11" rx="1" fill="white" stroke="#333" stroke-width="1"/>
+  <line x1="80" y1="57" x2="80" y2="64" stroke="#333" stroke-width="1.2"/>
+  <line x1="76" y1="60.5" x2="84" y2="60.5" stroke="#333" stroke-width="1.2"/>
+  <defs>
+    <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 Z" fill="#333"/>
+    </marker>
+  </defs>
+</svg>

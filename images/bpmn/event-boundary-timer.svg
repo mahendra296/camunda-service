@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 60" width="90" height="70">
+  <!-- task box -->
+  <rect x="2" y="2" width="45" height="30" rx="4" fill="white" stroke="#333" stroke-width="1.5"/>
+  <text x="24" y="22" text-anchor="middle" font-size="9" fill="#333" font-family="Arial">Task</text>
+  <!-- boundary event (dashed = non-interrupting, solid = interrupting) -->
+  <circle cx="47" cy="32" r="12" fill="white" stroke="#333" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <circle cx="47" cy="32" r="9" fill="white" stroke="#333" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <!-- clock -->
+  <circle cx="47" cy="32" r="6" fill="white" stroke="#333" stroke-width="1"/>
+  <line x1="47" y1="27" x2="47" y2="29" stroke="#333" stroke-width="1"/>
+  <line x1="47" y1="35" x2="47" y2="37" stroke="#333" stroke-width="1"/>
+  <line x1="42" y1="32" x2="44" y2="32" stroke="#333" stroke-width="1"/>
+  <line x1="50" y1="32" x2="52" y2="32" stroke="#333" stroke-width="1"/>
+  <line x1="47" y1="32" x2="47" y2="28" stroke="#333" stroke-width="1" stroke-linecap="round"/>
+  <line x1="47" y1="32" x2="50" y2="32" stroke="#333" stroke-width="1" stroke-linecap="round"/>
+  <text x="35" y="55" text-anchor="middle" font-size="8" fill="#555" font-family="Arial">Boundary (Timer)</text>
+</svg>

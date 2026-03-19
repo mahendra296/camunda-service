@@ -1,0 +1,753 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_OrderManagement" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:message id="Message_OrderReceived" name="OrderReceived" />
+  <bpmn:message id="Message_OrderCancellation" name="OrderCancellation">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=orderId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_ShipmentReady" name="ShipmentReady">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=orderId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_DeliveryConfirmation" name="DeliveryConfirmation">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=orderId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:error id="Error_PaymentFailed" name="PaymentFailed" errorCode="PAYMENT_FAILED" />
+  <bpmn:error id="Error_OrderRejected" name="OrderRejected" errorCode="ORDER_REJECTED" />
+  <bpmn:process id="order-management-process" name="Order Management Process" isExecutable="true">
+    <bpmn:startEvent id="start_event_order_received" name="Order&#10;Received">
+      <bpmn:extensionElements>
+        <zeebe:properties>
+          <zeebe:property name="correlationKey" value="=orderId" />
+        </zeebe:properties>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>flow_start_to_validate</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_start" messageRef="Message_OrderReceived" />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="task_validate_order" name="Validate Order">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.validate" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_start_to_validate</bpmn:incoming>
+      <bpmn:outgoing>flow_validate_to_gw_valid</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="gw_order_valid" name="Order&#10;Valid?" default="flow_gw_valid_yes">
+      <bpmn:incoming>flow_validate_to_gw_valid</bpmn:incoming>
+      <bpmn:outgoing>flow_gw_valid_yes</bpmn:outgoing>
+      <bpmn:outgoing>flow_gw_valid_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_send_rejection" name="Send Rejection&#10;Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.send-rejection" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_valid_no</bpmn:incoming>
+      <bpmn:outgoing>flow_rejection_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_order_rejected" name="Order&#10;Rejected">
+      <bpmn:incoming>flow_rejection_to_end</bpmn:incoming>
+      <bpmn:errorEventDefinition id="ErrDef_rejected" errorRef="Error_OrderRejected" />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="task_check_inventory" name="Check Inventory">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.check-inventory" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_valid_yes</bpmn:incoming>
+      <bpmn:outgoing>flow_inventory_to_gw_stock</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="gw_in_stock" name="In&#10;Stock?" default="flow_gw_stock_yes">
+      <bpmn:incoming>flow_inventory_to_gw_stock</bpmn:incoming>
+      <bpmn:incoming>flow_restock_timer_to_check</bpmn:incoming>
+      <bpmn:outgoing>flow_gw_stock_yes</bpmn:outgoing>
+      <bpmn:outgoing>flow_gw_stock_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_notify_backorder" name="Notify Customer:&#10;Backorder">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.notify-backorder" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_stock_no</bpmn:incoming>
+      <bpmn:outgoing>flow_backorder_to_timer</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="timer_wait_restock" name="Wait 24h&#10;for Restock">
+      <bpmn:incoming>flow_backorder_to_timer</bpmn:incoming>
+      <bpmn:timerEventDefinition id="TimerDef_restock">
+        <bpmn:timeDuration>PT24H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="task_reserve_inventory" name="Reserve Inventory">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.reserve-inventory" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_stock_yes</bpmn:incoming>
+      <bpmn:outgoing>flow_reserve_to_payment</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_process_payment" name="Process Payment">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.process-payment" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_reserve_to_payment</bpmn:incoming>
+      <bpmn:outgoing>flow_payment_to_gw_result</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="boundary_payment_error" name="Payment&#10;Error" attachedToRef="task_process_payment">
+      <bpmn:outgoing>flow_payment_error_to_handle</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrDef_payment_boundary" errorRef="Error_PaymentFailed" />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="task_handle_payment_failure" name="Handle Payment&#10;Failure">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.handle-payment-failure" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_payment_error_to_handle</bpmn:incoming>
+      <bpmn:outgoing>flow_handle_payment_to_end</bpmn:outgoing>
+      <bpmn:outgoing>flow_restock_timer_to_check</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_payment_error" name="Payment&#10;Error End">
+      <bpmn:incoming>flow_handle_payment_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="gw_payment_result" name="Payment&#10;Successful?" default="flow_payment_success">
+      <bpmn:incoming>flow_payment_to_gw_result</bpmn:incoming>
+      <bpmn:outgoing>flow_payment_success</bpmn:outgoing>
+      <bpmn:outgoing>flow_payment_declined</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_notify_payment_failed" name="Notify Payment&#10;Declined">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.notify-payment-failed" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_payment_declined</bpmn:incoming>
+      <bpmn:outgoing>flow_notify_payment_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_payment_declined" name="Order Payment&#10;Declined">
+      <bpmn:incoming>flow_notify_payment_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:parallelGateway id="gw_parallel_split" name="Parallel&#10;Split">
+      <bpmn:incoming>flow_payment_success</bpmn:incoming>
+      <bpmn:outgoing>flow_parallel_to_shipment</bpmn:outgoing>
+      <bpmn:outgoing>flow_parallel_to_confirmation</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="task_prepare_shipment" name="Prepare Shipment">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.prepare-shipment" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_parallel_to_shipment</bpmn:incoming>
+      <bpmn:outgoing>flow_shipment_to_join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_send_confirmation" name="Send Order&#10;Confirmation">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.send-confirmation" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_parallel_to_confirmation</bpmn:incoming>
+      <bpmn:outgoing>flow_confirmation_to_join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:parallelGateway id="gw_parallel_join" name="Join">
+      <bpmn:incoming>flow_shipment_to_join</bpmn:incoming>
+      <bpmn:incoming>flow_confirmation_to_join</bpmn:incoming>
+      <bpmn:outgoing>flow_join_to_event_gw</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:eventBasedGateway id="gw_event_based" name="Await Event">
+      <bpmn:incoming>flow_join_to_event_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_event_gw_to_cancel</bpmn:outgoing>
+      <bpmn:outgoing>flow_event_gw_to_sla</bpmn:outgoing>
+      <bpmn:outgoing>flow_event_gw_to_shipment_ready</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="catch_cancellation" name="Customer&#10;Cancels Order">
+      <bpmn:incoming>flow_event_gw_to_cancel</bpmn:incoming>
+      <bpmn:outgoing>flow_cancel_to_process</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_cancel" messageRef="Message_OrderCancellation" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="task_process_cancellation" name="Process Cancellation&#10;&#38; Refund">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.process-cancellation" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_cancel_to_process</bpmn:incoming>
+      <bpmn:outgoing>flow_cancellation_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_order_cancelled" name="Order&#10;Cancelled">
+      <bpmn:incoming>flow_cancellation_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="catch_sla_breach" name="SLA Breach&#10;(48h)">
+      <bpmn:incoming>flow_event_gw_to_sla</bpmn:incoming>
+      <bpmn:outgoing>flow_sla_to_escalate</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_sla">
+        <bpmn:timeDuration>PT48H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="task_escalate_manager" name="Escalate to&#10;Manager">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition assignee="manager" />
+        <zeebe:formDefinition formKey="escalation-form" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_sla_to_escalate</bpmn:incoming>
+      <bpmn:outgoing>flow_escalate_to_merge</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="catch_shipment_ready" name="Shipment&#10;Ready">
+      <bpmn:incoming>flow_event_gw_to_shipment_ready</bpmn:incoming>
+      <bpmn:outgoing>flow_shipment_ready_to_merge</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_shipment_ready" messageRef="Message_ShipmentReady" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:inclusiveGateway id="gw_pre_ship_merge" name="Merge to&#10;Shipping">
+      <bpmn:incoming>flow_escalate_to_merge</bpmn:incoming>
+      <bpmn:incoming>flow_shipment_ready_to_merge</bpmn:incoming>
+      <bpmn:outgoing>flow_merge_to_ship</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:serviceTask id="task_ship_order" name="Ship Order">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.ship" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_merge_to_ship</bpmn:incoming>
+      <bpmn:outgoing>flow_ship_to_delivery</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="boundary_shipping_sla" name="Shipping SLA&#10;(72h)" cancelActivity="false" attachedToRef="task_ship_order">
+      <bpmn:outgoing>flow_shipping_sla_to_handle</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_shipping_sla">
+        <bpmn:timeDuration>PT72H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="task_handle_sla_breach" name="Handle Shipping&#10;SLA Breach">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.handle-sla-breach" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_shipping_sla_to_handle</bpmn:incoming>
+      <bpmn:outgoing>flow_sla_breach_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_sla_notified" name="SLA Escalation&#10;Notified">
+      <bpmn:incoming>flow_sla_breach_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="catch_delivery_confirmation" name="Delivery&#10;Confirmed">
+      <bpmn:incoming>flow_ship_to_delivery</bpmn:incoming>
+      <bpmn:outgoing>flow_delivery_to_gw</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_delivery" messageRef="Message_DeliveryConfirmation" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="gw_delivery_result" name="Delivered&#10;Successfully?" default="flow_delivery_yes">
+      <bpmn:incoming>flow_delivery_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_delivery_yes</bpmn:outgoing>
+      <bpmn:outgoing>flow_delivery_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_send_delivery_confirmation" name="Send Delivery&#10;Confirmation">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.send-delivery-confirmation" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_delivery_yes</bpmn:incoming>
+      <bpmn:outgoing>flow_delivery_confirmation_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_order_complete" name="Order Completed&#10;Successfully">
+      <bpmn:incoming>flow_delivery_confirmation_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="task_handle_delivery_issue" name="Handle Delivery&#10;Issue">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition assignee="support-agent" />
+        <zeebe:formDefinition formKey="delivery-issue-form" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_delivery_no</bpmn:incoming>
+      <bpmn:outgoing>flow_issue_to_gw_reship</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="gw_reship_or_refund" name="Reship or&#10;Refund?" default="flow_gw_reship">
+      <bpmn:incoming>flow_issue_to_gw_reship</bpmn:incoming>
+      <bpmn:outgoing>flow_gw_reship</bpmn:outgoing>
+      <bpmn:outgoing>flow_gw_refund</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_reship_order" name="Reship Order">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.reship" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_reship</bpmn:incoming>
+      <bpmn:outgoing>flow_reship_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_process_refund" name="Process Refund">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="order.process-refund" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_refund</bpmn:incoming>
+      <bpmn:outgoing>flow_refund_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_reshipped" name="Order&#10;Reshipped">
+      <bpmn:incoming>flow_reship_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="end_refunded" name="Order&#10;Refunded">
+      <bpmn:incoming>flow_refund_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_start_to_validate" sourceRef="start_event_order_received" targetRef="task_validate_order" />
+    <bpmn:sequenceFlow id="flow_validate_to_gw_valid" sourceRef="task_validate_order" targetRef="gw_order_valid" />
+    <bpmn:sequenceFlow id="flow_gw_valid_yes" name="Valid" sourceRef="gw_order_valid" targetRef="task_check_inventory" />
+    <bpmn:sequenceFlow id="flow_gw_valid_no" name="Invalid" sourceRef="gw_order_valid" targetRef="task_send_rejection">
+      <bpmn:conditionExpression>= orderValid = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_rejection_to_end" sourceRef="task_send_rejection" targetRef="end_order_rejected" />
+    <bpmn:sequenceFlow id="flow_inventory_to_gw_stock" sourceRef="task_check_inventory" targetRef="gw_in_stock" />
+    <bpmn:sequenceFlow id="flow_gw_stock_yes" name="In Stock" sourceRef="gw_in_stock" targetRef="task_reserve_inventory" />
+    <bpmn:sequenceFlow id="flow_gw_stock_no" name="Out of Stock" sourceRef="gw_in_stock" targetRef="task_notify_backorder">
+      <bpmn:conditionExpression>= inStock = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_backorder_to_timer" sourceRef="task_notify_backorder" targetRef="timer_wait_restock" />
+    <bpmn:sequenceFlow id="flow_restock_timer_to_check" sourceRef="task_handle_payment_failure" targetRef="gw_in_stock" />
+    <bpmn:sequenceFlow id="flow_reserve_to_payment" sourceRef="task_reserve_inventory" targetRef="task_process_payment" />
+    <bpmn:sequenceFlow id="flow_payment_to_gw_result" sourceRef="task_process_payment" targetRef="gw_payment_result" />
+    <bpmn:sequenceFlow id="flow_payment_error_to_handle" sourceRef="boundary_payment_error" targetRef="task_handle_payment_failure" />
+    <bpmn:sequenceFlow id="flow_handle_payment_to_end" sourceRef="task_handle_payment_failure" targetRef="end_payment_error" />
+    <bpmn:sequenceFlow id="flow_payment_success" name="Success" sourceRef="gw_payment_result" targetRef="gw_parallel_split" />
+    <bpmn:sequenceFlow id="flow_payment_declined" name="Declined" sourceRef="gw_payment_result" targetRef="task_notify_payment_failed">
+      <bpmn:conditionExpression>= paymentStatus = "DECLINED"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_notify_payment_to_end" sourceRef="task_notify_payment_failed" targetRef="end_payment_declined" />
+    <bpmn:sequenceFlow id="flow_parallel_to_shipment" sourceRef="gw_parallel_split" targetRef="task_prepare_shipment" />
+    <bpmn:sequenceFlow id="flow_parallel_to_confirmation" sourceRef="gw_parallel_split" targetRef="task_send_confirmation" />
+    <bpmn:sequenceFlow id="flow_shipment_to_join" sourceRef="task_prepare_shipment" targetRef="gw_parallel_join" />
+    <bpmn:sequenceFlow id="flow_confirmation_to_join" sourceRef="task_send_confirmation" targetRef="gw_parallel_join" />
+    <bpmn:sequenceFlow id="flow_join_to_event_gw" sourceRef="gw_parallel_join" targetRef="gw_event_based" />
+    <bpmn:sequenceFlow id="flow_event_gw_to_cancel" sourceRef="gw_event_based" targetRef="catch_cancellation" />
+    <bpmn:sequenceFlow id="flow_event_gw_to_sla" sourceRef="gw_event_based" targetRef="catch_sla_breach" />
+    <bpmn:sequenceFlow id="flow_event_gw_to_shipment_ready" sourceRef="gw_event_based" targetRef="catch_shipment_ready" />
+    <bpmn:sequenceFlow id="flow_cancel_to_process" sourceRef="catch_cancellation" targetRef="task_process_cancellation" />
+    <bpmn:sequenceFlow id="flow_cancellation_to_end" sourceRef="task_process_cancellation" targetRef="end_order_cancelled" />
+    <bpmn:sequenceFlow id="flow_sla_to_escalate" sourceRef="catch_sla_breach" targetRef="task_escalate_manager" />
+    <bpmn:sequenceFlow id="flow_escalate_to_merge" sourceRef="task_escalate_manager" targetRef="gw_pre_ship_merge" />
+    <bpmn:sequenceFlow id="flow_shipment_ready_to_merge" sourceRef="catch_shipment_ready" targetRef="gw_pre_ship_merge" />
+    <bpmn:sequenceFlow id="flow_merge_to_ship" sourceRef="gw_pre_ship_merge" targetRef="task_ship_order" />
+    <bpmn:sequenceFlow id="flow_ship_to_delivery" sourceRef="task_ship_order" targetRef="catch_delivery_confirmation" />
+    <bpmn:sequenceFlow id="flow_shipping_sla_to_handle" sourceRef="boundary_shipping_sla" targetRef="task_handle_sla_breach" />
+    <bpmn:sequenceFlow id="flow_sla_breach_to_end" sourceRef="task_handle_sla_breach" targetRef="end_sla_notified" />
+    <bpmn:sequenceFlow id="flow_delivery_to_gw" sourceRef="catch_delivery_confirmation" targetRef="gw_delivery_result" />
+    <bpmn:sequenceFlow id="flow_delivery_yes" name="Delivered" sourceRef="gw_delivery_result" targetRef="task_send_delivery_confirmation" />
+    <bpmn:sequenceFlow id="flow_delivery_no" name="Not Delivered" sourceRef="gw_delivery_result" targetRef="task_handle_delivery_issue">
+      <bpmn:conditionExpression>= deliverySuccess = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_delivery_confirmation_to_end" sourceRef="task_send_delivery_confirmation" targetRef="end_order_complete" />
+    <bpmn:sequenceFlow id="flow_issue_to_gw_reship" sourceRef="task_handle_delivery_issue" targetRef="gw_reship_or_refund" />
+    <bpmn:sequenceFlow id="flow_gw_reship" name="Reship" sourceRef="gw_reship_or_refund" targetRef="task_reship_order" />
+    <bpmn:sequenceFlow id="flow_gw_refund" name="Refund" sourceRef="gw_reship_or_refund" targetRef="task_process_refund">
+      <bpmn:conditionExpression>= resolution = "REFUND"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_reship_to_end" sourceRef="task_reship_order" targetRef="end_reshipped" />
+    <bpmn:sequenceFlow id="flow_refund_to_end" sourceRef="task_process_refund" targetRef="end_refunded" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="order-management-process">
+      <bpmndi:BPMNShape id="Shape_start" bpmnElement="start_event_order_received">
+        <dc:Bounds x="162" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="157" y="305" width="46" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_validate" bpmnElement="task_validate_order">
+        <dc:Bounds x="250" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_gw_valid" bpmnElement="gw_order_valid" isMarkerVisible="true">
+        <dc:Bounds x="405" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="415" y="312" width="30" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_rejection" bpmnElement="task_send_rejection">
+        <dc:Bounds x="510" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_rejected" bpmnElement="end_order_rejected">
+        <dc:Bounds x="672" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="668" y="145" width="44" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_check_inv" bpmnElement="task_check_inventory">
+        <dc:Bounds x="510" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_gw_stock" bpmnElement="gw_in_stock" isMarkerVisible="true">
+        <dc:Bounds x="665" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="673" y="217.5" width="34" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_backorder" bpmnElement="task_notify_backorder">
+        <dc:Bounds x="770" y="410" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_timer_restock" bpmnElement="timer_wait_restock">
+        <dc:Bounds x="932" y="432" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="922" y="475" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_reserve" bpmnElement="task_reserve_inventory">
+        <dc:Bounds x="770" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_payment" bpmnElement="task_process_payment">
+        <dc:Bounds x="930" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_handle_payment" bpmnElement="task_handle_payment_failure">
+        <dc:Bounds x="930" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_gw_payment" bpmnElement="gw_payment_result" isMarkerVisible="true">
+        <dc:Bounds x="1085" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1080" y="312" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_notify_payment" bpmnElement="task_notify_payment_failed">
+        <dc:Bounds x="1200" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_declined" bpmnElement="end_payment_declined">
+        <dc:Bounds x="1362" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1343" y="465" width="75" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_parallel_split" bpmnElement="gw_parallel_split">
+        <dc:Bounds x="1235" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1242" y="312" width="37" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_prepare_ship" bpmnElement="task_prepare_shipment">
+        <dc:Bounds x="1360" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_send_confirm" bpmnElement="task_send_confirmation">
+        <dc:Bounds x="1360" y="310" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_parallel_join" bpmnElement="gw_parallel_join">
+        <dc:Bounds x="1525" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1540" y="312" width="21" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_event_gw" bpmnElement="gw_event_based">
+        <dc:Bounds x="1655" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1651" y="312" width="58" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_catch_cancel" bpmnElement="catch_cancellation">
+        <dc:Bounds x="1782" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1764" y="145" width="72" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_process_cancel" bpmnElement="task_process_cancellation">
+        <dc:Bounds x="1880" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_cancelled" bpmnElement="end_order_cancelled">
+        <dc:Bounds x="2042" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2036" y="145" width="49" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_catch_sla" bpmnElement="catch_sla_breach">
+        <dc:Bounds x="1782" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1771" y="465" width="59" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_escalate" bpmnElement="task_escalate_manager">
+        <dc:Bounds x="1880" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_catch_ship_ready" bpmnElement="catch_shipment_ready">
+        <dc:Bounds x="1782" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1777" y="305" width="47" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_merge_gw" bpmnElement="gw_pre_ship_merge">
+        <dc:Bounds x="2055" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2058" y="312" width="44" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_ship" bpmnElement="task_ship_order">
+        <dc:Bounds x="2170" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_handle_sla" bpmnElement="task_handle_sla_breach">
+        <dc:Bounds x="2170" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_sla" bpmnElement="end_sla_notified">
+        <dc:Bounds x="2332" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2313" y="465" width="74" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_catch_delivery" bpmnElement="catch_delivery_confirmation">
+        <dc:Bounds x="2332" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2325" y="305" width="51" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_gw_delivery" bpmnElement="gw_delivery_result" isMarkerVisible="true">
+        <dc:Bounds x="2435" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2426" y="312" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_send_delivery_confirm" bpmnElement="task_send_delivery_confirmation">
+        <dc:Bounds x="2560" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_complete" bpmnElement="end_order_complete">
+        <dc:Bounds x="2722" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2698" y="255" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_delivery_issue" bpmnElement="task_handle_delivery_issue">
+        <dc:Bounds x="2560" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_gw_reship" bpmnElement="gw_reship_or_refund" isMarkerVisible="true">
+        <dc:Bounds x="2725" y="335" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2726" y="392" width="49" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_reship" bpmnElement="task_reship_order">
+        <dc:Bounds x="2855" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_refund" bpmnElement="task_process_refund">
+        <dc:Bounds x="2855" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_reshipped" bpmnElement="end_reshipped">
+        <dc:Bounds x="3017" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3009" y="345" width="53" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_refunded" bpmnElement="end_refunded">
+        <dc:Bounds x="3017" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3011" y="465" width="48" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_payment_error" bpmnElement="end_payment_error">
+        <dc:Bounds x="1082" y="462" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1076" y="505" width="48" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_boundary_sla" bpmnElement="boundary_shipping_sla">
+        <dc:Bounds x="2232" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2262" y="325" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_boundary_payment" bpmnElement="boundary_payment_error">
+        <dc:Bounds x="952" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="986" y="330" width="44" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_start_validate" bpmnElement="flow_start_to_validate">
+        <di:waypoint x="198" y="280" />
+        <di:waypoint x="250" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_validate_gw" bpmnElement="flow_validate_to_gw_valid">
+        <di:waypoint x="350" y="280" />
+        <di:waypoint x="405" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_gw_valid_yes" bpmnElement="flow_gw_valid_yes">
+        <di:waypoint x="455" y="280" />
+        <di:waypoint x="510" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="471" y="255" width="23" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_gw_valid_no" bpmnElement="flow_gw_valid_no">
+        <di:waypoint x="430" y="255" />
+        <di:waypoint x="430" y="120" />
+        <di:waypoint x="510" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="429" y="178" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_reject_end" bpmnElement="flow_rejection_to_end">
+        <di:waypoint x="610" y="120" />
+        <di:waypoint x="672" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_inv_gw" bpmnElement="flow_inventory_to_gw_stock">
+        <di:waypoint x="610" y="280" />
+        <di:waypoint x="665" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_stock_yes" bpmnElement="flow_gw_stock_yes">
+        <di:waypoint x="715" y="280" />
+        <di:waypoint x="770" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="722" y="255" width="41" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_stock_no" bpmnElement="flow_gw_stock_no">
+        <di:waypoint x="690" y="305" />
+        <di:waypoint x="690" y="450" />
+        <di:waypoint x="770" y="450" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="674" y="368" width="62" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_backorder_timer" bpmnElement="flow_backorder_to_timer">
+        <di:waypoint x="870" y="450" />
+        <di:waypoint x="932" y="450" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_restock_to_check" bpmnElement="flow_restock_timer_to_check">
+        <di:waypoint x="950" y="400" />
+        <di:waypoint x="950" y="350" />
+        <di:waypoint x="690" y="350" />
+        <di:waypoint x="690" y="305" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_reserve_payment" bpmnElement="flow_reserve_to_payment">
+        <di:waypoint x="870" y="280" />
+        <di:waypoint x="930" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_payment_gw" bpmnElement="flow_payment_to_gw_result">
+        <di:waypoint x="1030" y="280" />
+        <di:waypoint x="1085" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_payment_err_handle" bpmnElement="flow_payment_error_to_handle">
+        <di:waypoint x="970" y="338" />
+        <di:waypoint x="970" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_handle_pay_end" bpmnElement="flow_handle_payment_to_end">
+        <di:waypoint x="1030" y="440" />
+        <di:waypoint x="1056" y="440" />
+        <di:waypoint x="1056" y="480" />
+        <di:waypoint x="1082" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_pay_success" bpmnElement="flow_payment_success">
+        <di:waypoint x="1135" y="280" />
+        <di:waypoint x="1235" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1164" y="255" width="43" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_pay_declined" bpmnElement="flow_payment_declined">
+        <di:waypoint x="1110" y="305" />
+        <di:waypoint x="1110" y="440" />
+        <di:waypoint x="1200" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1104" y="363" width="43" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_notify_pay_end" bpmnElement="flow_notify_payment_to_end">
+        <di:waypoint x="1300" y="440" />
+        <di:waypoint x="1362" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_par_to_ship" bpmnElement="flow_parallel_to_shipment">
+        <di:waypoint x="1260" y="255" />
+        <di:waypoint x="1260" y="230" />
+        <di:waypoint x="1360" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_par_to_confirm" bpmnElement="flow_parallel_to_confirmation">
+        <di:waypoint x="1260" y="305" />
+        <di:waypoint x="1260" y="350" />
+        <di:waypoint x="1360" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ship_join" bpmnElement="flow_shipment_to_join">
+        <di:waypoint x="1460" y="230" />
+        <di:waypoint x="1550" y="230" />
+        <di:waypoint x="1550" y="255" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_confirm_join" bpmnElement="flow_confirmation_to_join">
+        <di:waypoint x="1460" y="350" />
+        <di:waypoint x="1550" y="350" />
+        <di:waypoint x="1550" y="305" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_join_event" bpmnElement="flow_join_to_event_gw">
+        <di:waypoint x="1575" y="280" />
+        <di:waypoint x="1655" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_evgw_cancel" bpmnElement="flow_event_gw_to_cancel">
+        <di:waypoint x="1680" y="255" />
+        <di:waypoint x="1680" y="120" />
+        <di:waypoint x="1782" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_evgw_sla" bpmnElement="flow_event_gw_to_sla">
+        <di:waypoint x="1680" y="305" />
+        <di:waypoint x="1680" y="440" />
+        <di:waypoint x="1782" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_evgw_ship" bpmnElement="flow_event_gw_to_shipment_ready">
+        <di:waypoint x="1705" y="280" />
+        <di:waypoint x="1782" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_cancel_process" bpmnElement="flow_cancel_to_process">
+        <di:waypoint x="1818" y="120" />
+        <di:waypoint x="1880" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_cancel_end" bpmnElement="flow_cancellation_to_end">
+        <di:waypoint x="1980" y="120" />
+        <di:waypoint x="2042" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_sla_escalate" bpmnElement="flow_sla_to_escalate">
+        <di:waypoint x="1818" y="440" />
+        <di:waypoint x="1880" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_escalate_merge" bpmnElement="flow_escalate_to_merge">
+        <di:waypoint x="1980" y="440" />
+        <di:waypoint x="2080" y="440" />
+        <di:waypoint x="2080" y="305" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_shipready_merge" bpmnElement="flow_shipment_ready_to_merge">
+        <di:waypoint x="1818" y="280" />
+        <di:waypoint x="2055" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_merge_ship" bpmnElement="flow_merge_to_ship">
+        <di:waypoint x="2105" y="280" />
+        <di:waypoint x="2170" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ship_delivery" bpmnElement="flow_ship_to_delivery">
+        <di:waypoint x="2270" y="280" />
+        <di:waypoint x="2332" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_sla_boundary" bpmnElement="flow_shipping_sla_to_handle">
+        <di:waypoint x="2250" y="338" />
+        <di:waypoint x="2250" y="400" />
+        <di:waypoint x="2220" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_sla_end" bpmnElement="flow_sla_breach_to_end">
+        <di:waypoint x="2270" y="440" />
+        <di:waypoint x="2332" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_delivery_gw" bpmnElement="flow_delivery_to_gw">
+        <di:waypoint x="2368" y="280" />
+        <di:waypoint x="2435" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_delivery_yes" bpmnElement="flow_delivery_yes">
+        <di:waypoint x="2460" y="255" />
+        <di:waypoint x="2460" y="230" />
+        <di:waypoint x="2560" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2452" y="233" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_delivery_no" bpmnElement="flow_delivery_no">
+        <di:waypoint x="2460" y="305" />
+        <di:waypoint x="2460" y="360" />
+        <di:waypoint x="2560" y="360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2442" y="323" width="67" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_confirm_delivery" bpmnElement="flow_delivery_confirmation_to_end">
+        <di:waypoint x="2660" y="230" />
+        <di:waypoint x="2722" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_issue_gw" bpmnElement="flow_issue_to_gw_reship">
+        <di:waypoint x="2660" y="360" />
+        <di:waypoint x="2725" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_gw_reship" bpmnElement="flow_gw_reship">
+        <di:waypoint x="2750" y="335" />
+        <di:waypoint x="2750" y="320" />
+        <di:waypoint x="2855" y="320" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2748" y="318" width="35" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_gw_refund" bpmnElement="flow_gw_refund">
+        <di:waypoint x="2750" y="385" />
+        <di:waypoint x="2750" y="440" />
+        <di:waypoint x="2855" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2747" y="403" width="36" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_reship_end" bpmnElement="flow_reship_to_end">
+        <di:waypoint x="2955" y="320" />
+        <di:waypoint x="3017" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_refund_end" bpmnElement="flow_refund_to_end">
+        <di:waypoint x="2955" y="440" />
+        <di:waypoint x="3017" y="440" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

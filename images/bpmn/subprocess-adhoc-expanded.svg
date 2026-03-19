@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80" viewBox="0 0 160 70">
+  <rect x="2" y="2" width="156" height="66" rx="5" fill="white" stroke="#333" stroke-width="1.5"/>
+  <text x="80" y="14" font-family="Arial, sans-serif" font-size="8" fill="#333" text-anchor="middle">Ad-Hoc (Expanded)</text>
+  <!-- Mini task 1 -->
+  <rect x="15" y="25" width="30" height="18" rx="2" fill="white" stroke="#333" stroke-width="1"/>
+  <text x="30" y="36" font-family="Arial, sans-serif" font-size="6" fill="#333" text-anchor="middle">Task A</text>
+  <!-- Mini task 2 -->
+  <rect x="55" y="25" width="30" height="18" rx="2" fill="white" stroke="#333" stroke-width="1"/>
+  <text x="70" y="36" font-family="Arial, sans-serif" font-size="6" fill="#333" text-anchor="middle">Task B</text>
+  <!-- Mini task 3 -->
+  <rect x="95" y="25" width="30" height="18" rx="2" fill="white" stroke="#333" stroke-width="1"/>
+  <text x="110" y="36" font-family="Arial, sans-serif" font-size="6" fill="#333" text-anchor="middle">Task C</text>
+  <!-- Tilde ~ marker at bottom center -->
+  <text x="80" y="63" font-family="Arial, sans-serif" font-size="14" fill="#333" text-anchor="middle">~</text>
+</svg>

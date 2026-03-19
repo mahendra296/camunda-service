@@ -1,0 +1,83 @@
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: docusigndb
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d docusigndb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.6
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      cluster.name: camunda-cluster
+      node.name: elasticsearch
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+  camunda:
+    image: camunda/camunda:8.8.3
+    container_name: camunda
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "8080:8080"    # Operate, Tasklist, REST API
+      - "26500:26500"  # Zeebe gRPC
+      - "9600:9600"    # Zeebe monitoring
+    environment:
+      # Unified secondary storage — Elasticsearch (new Camunda 8.8 config API)
+      CAMUNDA_DATA_SECONDARY_STORAGE_TYPE: elasticsearch
+      CAMUNDA_DATA_SECONDARY_STORAGE_ELASTICSEARCH_URL: http://elasticsearch:9200
+      # Security — basic auth, no Keycloak
+      CAMUNDA_SECURITY_AUTHENTICATION_METHOD: BASIC
+      CAMUNDA_SECURITY_AUTHENTICATION_UNPROTECTED_API: "true"
+      CAMUNDA_SECURITY_AUTHORIZATIONS_ENABLED: "false"
+      CAMUNDA_SECURITY_INITIALIZATION_USERS_0_USERNAME: demo
+      CAMUNDA_SECURITY_INITIALIZATION_USERS_0_PASSWORD: demo
+      CAMUNDA_SECURITY_INITIALIZATION_USERS_0_NAME: Demo
+      CAMUNDA_SECURITY_INITIALIZATION_USERS_0_EMAIL: demo@example.com
+      CAMUNDA_SECURITY_INITIALIZATION_DEFAULT_ROLES_ADMIN_USERS_0: demo
+      # Document Store — in-memory (default, explicit for clarity)
+      # Documents are lost on container restart — use S3 for production
+      DOCUMENT_DEFAULT_STORE_ID: inmemory
+      DOCUMENT_STORE_INMEMORY_CLASS: io.camunda.document.store.inmemory.InMemoryDocumentStoreProvider
+      # Zeebe network
+      ZEEBE_BROKER_NETWORK_HOST: 0.0.0.0
+      ZEEBE_BROKER_GATEWAY_ENABLE: "true"
+      ZEEBE_BROKER_GATEWAY_NETWORK_HOST: 0.0.0.0
+      ZEEBE_BROKER_GATEWAY_NETWORK_PORT: 26500
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9600/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+
+volumes:
+  postgres-data:
+  elasticsearch-data:

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 65" width="55" height="58">
+  <!-- diamond shape -->
+  <polygon points="30,3 57,30 30,57 3,30" fill="white" stroke="#333" stroke-width="1.8"/>
+  <!-- + mark inside -->
+  <line x1="30" y1="16" x2="30" y2="44" stroke="#333" stroke-width="3" stroke-linecap="round"/>
+  <line x1="16" y1="30" x2="44" y2="30" stroke="#333" stroke-width="3" stroke-linecap="round"/>
+  <text x="30" y="62" text-anchor="middle" font-size="9" fill="#555" font-family="Arial">Parallel (AND)</text>
+</svg>

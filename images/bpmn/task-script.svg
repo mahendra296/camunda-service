@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 55" width="130" height="50">
+  <rect x="2" y="2" width="86" height="42" rx="6" fill="white" stroke="#333" stroke-width="1.5"/>
+  <!-- script/lines icon top-left -->
+  <rect x="7" y="7" width="14" height="18" rx="2" fill="white" stroke="#333" stroke-width="1.3"/>
+  <line x1="9" y1="11" x2="19" y2="11" stroke="#333" stroke-width="1"/>
+  <line x1="9" y1="14" x2="19" y2="14" stroke="#333" stroke-width="1"/>
+  <line x1="9" y1="17" x2="16" y2="17" stroke="#333" stroke-width="1"/>
+  <line x1="9" y1="20" x2="18" y2="20" stroke="#333" stroke-width="1"/>
+  <text x="50" y="27" text-anchor="middle" font-size="11" fill="#333" font-family="Arial" font-weight="500">Script Task</text>
+  <text x="45" y="52" text-anchor="middle" font-size="8" fill="#777" font-family="Arial">inline FEEL expression</text>
+</svg>
