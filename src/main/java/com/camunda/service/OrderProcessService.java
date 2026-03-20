@@ -56,22 +56,41 @@ public class OrderProcessService {
     }
 
     /**
-     * Fires the ShipmentReady BPMN message, which triggers the parallel multi-instance
-     * Shipment Process — one subprocess instance per product in the order's items list.
+     * Fires the order-level ShipmentReady BPMN message correlated by orderId.
+     * This unblocks the event-based gateway after gw_parallel_join, triggering
+     * the Shipment Process subprocess.
      */
-    public void sendShipmentReadyMessage(String orderId, String shipmentNote, String warehouseId) {
-        log.info("[OrderProcessService] Sending ShipmentReady message for orderId={} warehouseId={}",
-                orderId, warehouseId);
+    public void sendShipmentReadyMessage(String orderId) {
+        log.info("[OrderProcessService] Sending ShipmentReady message for orderId={}", orderId);
+
+        camundaClient
+                .newPublishMessageCommand()
+                .messageName("ShipmentReady")
+                .correlationKey(orderId)
+                .variables(Map.of("shipmentReadyAt", System.currentTimeMillis()))
+                .send()
+                .join();
+    }
+
+    /**
+     * Fires the per-item ItemShipmentReady BPMN message correlated by orderId_productId.
+     * This is caught inside the multi-instance subprocess by the per-item catch event,
+     * allowing each product's subprocess instance to proceed independently.
+     */
+    public void sendItemShipmentReadyMessage(String orderId, String productId, String shipmentNote, String warehouseId) {
+        log.info("[OrderProcessService] Sending ItemShipmentReady message for orderId={} productId={} warehouseId={}",
+                orderId, productId, warehouseId);
 
         Map<String, Object> vars = new HashMap<>();
+        vars.put("productId", productId);
         vars.put("shipmentNote", shipmentNote != null ? shipmentNote : "");
         vars.put("warehouseId", warehouseId != null ? warehouseId : "");
         vars.put("shipmentReadyAt", System.currentTimeMillis());
 
         camundaClient
                 .newPublishMessageCommand()
-                .messageName("ShipmentReady")
-                .correlationKey(orderId)
+                .messageName("ItemShipmentReady")
+                .correlationKey(orderId + "_" + productId)
                 .variables(vars)
                 .send()
                 .join();
@@ -123,6 +142,17 @@ public class OrderProcessService {
                 .messageName("ShipmentStatusUpdate")
                 .correlationKey(orderId)
                 .variables(vars)
+                .send()
+                .join();
+    }
+
+    public void sendShipmentApprovalNotification(String orderId) {
+        log.info("[OrderProcessService] Sending ShipmentApprovalNotification for orderId={}", orderId);
+        camundaClient
+                .newPublishMessageCommand()
+                .messageName("ShipmentApprovalNotification")
+                .correlationKey(orderId)
+                .variables(Map.of("notifiedAt", System.currentTimeMillis()))
                 .send()
                 .join();
     }

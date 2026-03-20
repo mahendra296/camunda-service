@@ -1,4 +1,4 @@
-package com.camunda.order.exception;
+package com.camunda.exceptions;
 
 import io.camunda.client.api.command.ClientStatusException;
 import jakarta.validation.ConstraintViolationException;

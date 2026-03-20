@@ -1,4 +1,4 @@
-package com.camunda.order.exception;
+package com.camunda.exceptions;
 
 public class OrderConflictException extends RuntimeException {
 

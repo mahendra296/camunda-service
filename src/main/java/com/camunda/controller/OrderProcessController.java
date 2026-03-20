@@ -48,25 +48,45 @@ public class OrderProcessController {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // SHIPMENT EVENTS — one order can produce multiple shipments
-    // (one per product line item, handled by multi-instance subprocess)
+    // SHIPMENT EVENTS — two-tier message design:
+    //   1. Order-level ShipmentReady   → unblocks the event-based gateway
+    //   2. Per-item ItemShipmentReady  → unblocks each multi-instance subprocess
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Warehouse signals that ALL product shipments for this order are ready for dispatch.
-     * This triggers the parallel multi-instance Shipment Process (one instance per product).
+     * Signals that all shipments for an order are ready to be dispatched.
+     * Publishes the order-level ShipmentReady message (correlated by orderId)
+     * which unblocks the event-based gateway and starts the Shipment Process subprocess.
      *
      * POST /api/orders/{orderId}/shipment-ready
+     */
+    @PostMapping("/{orderId}/shipment-ready")
+    public ResponseEntity<Map<String, Object>> orderShipmentReady(@PathVariable String orderId) {
+        log.info("[API] POST /api/orders/{}/shipment-ready", orderId);
+        orderProcessService.sendShipmentReadyMessage(orderId);
+        return ResponseEntity.ok(Map.of(
+                "status", "SHIPMENT_READY_SENT",
+                "orderId", orderId,
+                "message", "Shipment Process subprocess triggered for order " + orderId));
+    }
+
+    /**
+     * Warehouse signals that a specific product shipment is ready for dispatch.
+     * Publishes the per-item ItemShipmentReady message (correlated by orderId_productId)
+     * which unblocks the corresponding multi-instance subprocess instance.
+     *
+     * POST /api/orders/{orderId}/products/{productId}/shipment-ready
      *
      * Optional body variables:
      *   { "variables": { "note": "...", "warehouseId": "..." } }
      */
-    @PostMapping("/{orderId}/shipment-ready")
-    public ResponseEntity<Map<String, Object>> shipmentReady(
+    @PostMapping("/{orderId}/products/{productId}/shipment-ready")
+    public ResponseEntity<Map<String, Object>> itemShipmentReady(
             @PathVariable String orderId,
+            @PathVariable String productId,
             @RequestBody(required = false) MessageRequest request) {
 
-        log.info("[API] POST /api/orders/{}/shipment-ready — triggering per-product shipment subprocess", orderId);
+        log.info("[API] POST /api/orders/{}/products/{}/shipment-ready", orderId, productId);
 
         Map<String, Object> variables = request != null && request.getVariables() != null
                 ? request.getVariables()
@@ -75,16 +95,32 @@ public class OrderProcessController {
         String note = (String) variables.getOrDefault("note", "");
         String warehouseId = (String) variables.getOrDefault("warehouseId", "");
 
-        orderProcessService.sendShipmentReadyMessage(orderId, note, warehouseId);
+        orderProcessService.sendItemShipmentReadyMessage(orderId, productId, note, warehouseId);
 
         Map<String, Object> response = new HashMap<>();
-        response.put("status", "SHIPMENT_READY_SENT");
+        response.put("status", "ITEM_SHIPMENT_READY_SENT");
         response.put("orderId", orderId);
-        response.put("message", "Shipment subprocess will run in parallel for each product in the order");
+        response.put("productId", productId);
+        response.put("message", "ItemShipmentReady message sent for product " + productId);
         if (!warehouseId.isEmpty()) {
             response.put("warehouseId", warehouseId);
         }
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Sends a shipment approval notification for an in-flight order.
+     * Publishes a ShipmentApprovalNotification message correlated by orderId.
+     *
+     * POST /api/orders/{orderId}/shipment-approval/notify
+     */
+    @PostMapping("/{orderId}/shipment-approval/notify")
+    public ResponseEntity<Map<String, String>> notifyShipmentApproval(@PathVariable String orderId) {
+        log.info("[API] POST /api/orders/{}/shipment-approval/notify", orderId);
+        orderProcessService.sendShipmentApprovalNotification(orderId);
+        return ResponseEntity.ok(Map.of(
+                "status", "SHIPMENT_APPROVAL_NOTIFICATION_SENT",
+                "orderId", orderId));
     }
 
     /**

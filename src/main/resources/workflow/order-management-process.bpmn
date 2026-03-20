@@ -10,6 +10,11 @@
       <zeebe:subscription correlationKey="=orderId" />
     </bpmn:extensionElements>
   </bpmn:message>
+  <bpmn:message id="Message_ItemShipmentReady" name="ItemShipmentReady">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="= orderId + &#34;_&#34; + currentItem.productId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
   <bpmn:message id="Message_DeliveryConfirmation" name="DeliveryConfirmation">
     <bpmn:extensionElements>
       <zeebe:subscription correlationKey="=orderId" />
@@ -140,68 +145,90 @@
       <bpmn:incoming>flow_join_to_event_gw</bpmn:incoming>
       <bpmn:outgoing>flow_event_gw_to_cancel</bpmn:outgoing>
       <bpmn:outgoing>flow_event_gw_to_sla</bpmn:outgoing>
-      <bpmn:outgoing>flow_event_gw_to_shipment_ready</bpmn:outgoing>
+      <bpmn:outgoing>flow_event_gw_to_shipment</bpmn:outgoing>
     </bpmn:eventBasedGateway>
     <bpmn:intermediateCatchEvent id="catch_cancellation" name="Customer&#10;Cancels Order">
       <bpmn:incoming>flow_event_gw_to_cancel</bpmn:incoming>
-      <bpmn:outgoing>flow_cancel_to_process</bpmn:outgoing>
+      <bpmn:outgoing>flow_cancel_to_approve</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MsgDef_cancel" messageRef="Message_OrderCancellation" />
     </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="catch_sla_breach" name="SLA Breach&#10;(48h)">
+      <bpmn:incoming>flow_event_gw_to_sla</bpmn:incoming>
+      <bpmn:outgoing>flow_sla_to_handle</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_sla">
+        <bpmn:timeDuration>PT48H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="catch_shipment_ready" name="Shipment&#10;Ready">
+      <bpmn:incoming>flow_event_gw_to_shipment</bpmn:incoming>
+      <bpmn:outgoing>flow_shipment_ready_to_subprocess</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MsgDef_shipment_ready" messageRef="Message_ShipmentReady" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="task_approve_cancellation" name="Approve&#10;Cancellation">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition assignee="support-agent" />
+        <zeebe:formDefinition formKey="cancellation-approval-form" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_cancel_to_approve</bpmn:incoming>
+      <bpmn:outgoing>flow_approve_to_process_cancel</bpmn:outgoing>
+    </bpmn:userTask>
     <bpmn:serviceTask id="task_process_cancellation" name="Process Cancellation&#10;&#38; Refund">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="order.process-cancellation" retries="3" />
       </bpmn:extensionElements>
-      <bpmn:incoming>flow_cancel_to_process</bpmn:incoming>
+      <bpmn:incoming>flow_approve_to_process_cancel</bpmn:incoming>
       <bpmn:outgoing>flow_cancellation_to_end</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="end_order_cancelled" name="Order&#10;Cancelled">
       <bpmn:incoming>flow_cancellation_to_end</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:intermediateCatchEvent id="catch_sla_breach" name="SLA Breach&#10;(48h)">
-      <bpmn:incoming>flow_event_gw_to_sla</bpmn:incoming>
-      <bpmn:outgoing>flow_sla_to_escalate</bpmn:outgoing>
-      <bpmn:timerEventDefinition id="TimerDef_sla">
-        <bpmn:timeDuration>PT48H</bpmn:timeDuration>
-      </bpmn:timerEventDefinition>
-    </bpmn:intermediateCatchEvent>
-    <bpmn:userTask id="task_escalate_manager" name="Escalate to&#10;Manager">
+    <bpmn:serviceTask id="task_handle_sla_breach" name="Handle SLA&#10;Breach">
       <bpmn:extensionElements>
-        <zeebe:assignmentDefinition assignee="manager" />
-        <zeebe:formDefinition formKey="escalation-form" />
+        <zeebe:taskDefinition type="order.handle-sla-breach" retries="3" />
       </bpmn:extensionElements>
-      <bpmn:incoming>flow_sla_to_escalate</bpmn:incoming>
-      <bpmn:outgoing>flow_escalate_to_merge</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:intermediateCatchEvent id="catch_shipment_ready" name="Shipment&#10;Ready">
-      <bpmn:incoming>flow_event_gw_to_shipment_ready</bpmn:incoming>
-      <bpmn:outgoing>flow_shipment_ready_to_merge</bpmn:outgoing>
-      <bpmn:messageEventDefinition id="MsgDef_shipment_ready" messageRef="Message_ShipmentReady" />
-    </bpmn:intermediateCatchEvent>
-    <bpmn:inclusiveGateway id="gw_pre_ship_merge" name="Merge to&#10;Shipping">
-      <bpmn:incoming>flow_escalate_to_merge</bpmn:incoming>
-      <bpmn:incoming>flow_shipment_ready_to_merge</bpmn:incoming>
-      <bpmn:outgoing>flow_merge_to_ship</bpmn:outgoing>
-    </bpmn:inclusiveGateway>
+      <bpmn:incoming>flow_sla_to_handle</bpmn:incoming>
+      <bpmn:incoming>flow_shipping_sla_to_handle</bpmn:incoming>
+      <bpmn:outgoing>flow_sla_breach_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_sla_notified" name="SLA Escalation&#10;Notified">
+      <bpmn:incoming>flow_sla_breach_to_end</bpmn:incoming>
+    </bpmn:endEvent>
     <bpmn:subProcess id="subprocess_shipment" name="Shipment Process&#10;(Per Product)">
-      <bpmn:incoming>flow_merge_to_ship</bpmn:incoming>
+      <bpmn:incoming>flow_shipment_ready_to_subprocess</bpmn:incoming>
       <bpmn:outgoing>flow_ship_to_delivery</bpmn:outgoing>
-      <bpmn:multiInstanceLoopCharacteristics isSequential="false">
+      <bpmn:multiInstanceLoopCharacteristics>
         <bpmn:extensionElements>
-          <zeebe:loopCharacteristics
-            inputCollection="=items"
-            inputElement="currentItem"
-            outputCollection="shipments"
-            outputElement="=shipmentResult" />
+          <zeebe:loopCharacteristics inputCollection="=items" inputElement="currentItem" outputCollection="shipments" outputElement="=shipmentResult" />
         </bpmn:extensionElements>
       </bpmn:multiInstanceLoopCharacteristics>
       <bpmn:startEvent id="ship_start" name="Shipment&#10;Started">
-        <bpmn:outgoing>flow_ship_start_to_assign</bpmn:outgoing>
+        <bpmn:outgoing>flow_ship_start_to_ready</bpmn:outgoing>
       </bpmn:startEvent>
+      <bpmn:intermediateCatchEvent id="catch_shipment_ready_item" name="Item&#10;Ready">
+        <bpmn:incoming>flow_ship_start_to_ready</bpmn:incoming>
+        <bpmn:outgoing>flow_ready_to_notify</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MsgDef_item_shipment_ready" messageRef="Message_ItemShipmentReady" />
+      </bpmn:intermediateCatchEvent>
+      <bpmn:serviceTask id="task_notify_shipment_approval" name="Notify Shipment&#10;Approval">
+        <bpmn:extensionElements>
+          <zeebe:taskDefinition type="order.notify-shipment-approval" retries="3" />
+        </bpmn:extensionElements>
+        <bpmn:incoming>flow_ready_to_notify</bpmn:incoming>
+        <bpmn:outgoing>flow_notify_to_approve</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:userTask id="task_approve_shipment" name="Approve&#10;Shipment">
+        <bpmn:extensionElements>
+          <zeebe:assignmentDefinition assignee="warehouse-supervisor" />
+          <zeebe:formDefinition formKey="shipment-approval-form" />
+        </bpmn:extensionElements>
+        <bpmn:incoming>flow_notify_to_approve</bpmn:incoming>
+        <bpmn:outgoing>flow_approve_to_assign</bpmn:outgoing>
+      </bpmn:userTask>
       <bpmn:serviceTask id="task_assign_carrier" name="Assign Carrier">
         <bpmn:extensionElements>
           <zeebe:taskDefinition type="shipment.assign-carrier" retries="3" />
         </bpmn:extensionElements>
-        <bpmn:incoming>flow_ship_start_to_assign</bpmn:incoming>
+        <bpmn:incoming>flow_approve_to_assign</bpmn:incoming>
         <bpmn:outgoing>flow_assign_to_label</bpmn:outgoing>
       </bpmn:serviceTask>
       <bpmn:serviceTask id="task_generate_label" name="Generate&#10;Shipping Label">
@@ -211,7 +238,7 @@
         <bpmn:incoming>flow_assign_to_label</bpmn:incoming>
         <bpmn:outgoing>flow_label_to_pick</bpmn:outgoing>
       </bpmn:serviceTask>
-      <bpmn:serviceTask id="task_pick_pack" name="Pick &amp; Pack&#10;Items">
+      <bpmn:serviceTask id="task_pick_pack" name="Pick &#38; Pack&#10;Items">
         <bpmn:extensionElements>
           <zeebe:taskDefinition type="shipment.pick-pack" retries="3" />
         </bpmn:extensionElements>
@@ -228,7 +255,10 @@
       <bpmn:endEvent id="ship_end" name="Shipment&#10;Dispatched">
         <bpmn:incoming>flow_dispatch_to_end</bpmn:incoming>
       </bpmn:endEvent>
-      <bpmn:sequenceFlow id="flow_ship_start_to_assign" sourceRef="ship_start" targetRef="task_assign_carrier" />
+      <bpmn:sequenceFlow id="flow_ship_start_to_ready" sourceRef="ship_start" targetRef="catch_shipment_ready_item" />
+      <bpmn:sequenceFlow id="flow_ready_to_notify" sourceRef="catch_shipment_ready_item" targetRef="task_notify_shipment_approval" />
+      <bpmn:sequenceFlow id="flow_notify_to_approve" sourceRef="task_notify_shipment_approval" targetRef="task_approve_shipment" />
+      <bpmn:sequenceFlow id="flow_approve_to_assign" sourceRef="task_approve_shipment" targetRef="task_assign_carrier" />
       <bpmn:sequenceFlow id="flow_assign_to_label" sourceRef="task_assign_carrier" targetRef="task_generate_label" />
       <bpmn:sequenceFlow id="flow_label_to_pick" sourceRef="task_generate_label" targetRef="task_pick_pack" />
       <bpmn:sequenceFlow id="flow_pick_to_dispatch" sourceRef="task_pick_pack" targetRef="task_dispatch_carrier" />
@@ -240,16 +270,6 @@
         <bpmn:timeDuration>PT72H</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:boundaryEvent>
-    <bpmn:serviceTask id="task_handle_sla_breach" name="Handle Shipping&#10;SLA Breach">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="order.handle-sla-breach" retries="3" />
-      </bpmn:extensionElements>
-      <bpmn:incoming>flow_shipping_sla_to_handle</bpmn:incoming>
-      <bpmn:outgoing>flow_sla_breach_to_end</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:endEvent id="end_sla_notified" name="SLA Escalation&#10;Notified">
-      <bpmn:incoming>flow_sla_breach_to_end</bpmn:incoming>
-    </bpmn:endEvent>
     <bpmn:intermediateCatchEvent id="catch_delivery_confirmation" name="Delivery&#10;Confirmed">
       <bpmn:incoming>flow_ship_to_delivery</bpmn:incoming>
       <bpmn:outgoing>flow_delivery_to_gw</bpmn:outgoing>
@@ -290,11 +310,19 @@
       <bpmn:incoming>flow_gw_reship</bpmn:incoming>
       <bpmn:outgoing>flow_reship_to_end</bpmn:outgoing>
     </bpmn:serviceTask>
+    <bpmn:userTask id="task_initiate_refund" name="Initiate&#10;Refund">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition assignee="finance-agent" />
+        <zeebe:formDefinition formKey="refund-initiation-form" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_refund</bpmn:incoming>
+      <bpmn:outgoing>flow_initiate_to_refund</bpmn:outgoing>
+    </bpmn:userTask>
     <bpmn:serviceTask id="task_process_refund" name="Process Refund">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="order.process-refund" retries="3" />
       </bpmn:extensionElements>
-      <bpmn:incoming>flow_gw_refund</bpmn:incoming>
+      <bpmn:incoming>flow_initiate_to_refund</bpmn:incoming>
       <bpmn:outgoing>flow_refund_to_end</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="end_reshipped" name="Order&#10;Reshipped">
@@ -332,16 +360,15 @@
     <bpmn:sequenceFlow id="flow_join_to_event_gw" sourceRef="gw_parallel_join" targetRef="gw_event_based" />
     <bpmn:sequenceFlow id="flow_event_gw_to_cancel" sourceRef="gw_event_based" targetRef="catch_cancellation" />
     <bpmn:sequenceFlow id="flow_event_gw_to_sla" sourceRef="gw_event_based" targetRef="catch_sla_breach" />
-    <bpmn:sequenceFlow id="flow_event_gw_to_shipment_ready" sourceRef="gw_event_based" targetRef="catch_shipment_ready" />
-    <bpmn:sequenceFlow id="flow_cancel_to_process" sourceRef="catch_cancellation" targetRef="task_process_cancellation" />
+    <bpmn:sequenceFlow id="flow_event_gw_to_shipment" sourceRef="gw_event_based" targetRef="catch_shipment_ready" />
+    <bpmn:sequenceFlow id="flow_cancel_to_approve" sourceRef="catch_cancellation" targetRef="task_approve_cancellation" />
+    <bpmn:sequenceFlow id="flow_sla_to_handle" sourceRef="catch_sla_breach" targetRef="task_handle_sla_breach" />
+    <bpmn:sequenceFlow id="flow_shipment_ready_to_subprocess" sourceRef="catch_shipment_ready" targetRef="subprocess_shipment" />
+    <bpmn:sequenceFlow id="flow_approve_to_process_cancel" sourceRef="task_approve_cancellation" targetRef="task_process_cancellation" />
     <bpmn:sequenceFlow id="flow_cancellation_to_end" sourceRef="task_process_cancellation" targetRef="end_order_cancelled" />
-    <bpmn:sequenceFlow id="flow_sla_to_escalate" sourceRef="catch_sla_breach" targetRef="task_escalate_manager" />
-    <bpmn:sequenceFlow id="flow_escalate_to_merge" sourceRef="task_escalate_manager" targetRef="gw_pre_ship_merge" />
-    <bpmn:sequenceFlow id="flow_shipment_ready_to_merge" sourceRef="catch_shipment_ready" targetRef="gw_pre_ship_merge" />
-    <bpmn:sequenceFlow id="flow_merge_to_ship" sourceRef="gw_pre_ship_merge" targetRef="subprocess_shipment" />
+    <bpmn:sequenceFlow id="flow_sla_breach_to_end" sourceRef="task_handle_sla_breach" targetRef="end_sla_notified" />
     <bpmn:sequenceFlow id="flow_ship_to_delivery" sourceRef="subprocess_shipment" targetRef="catch_delivery_confirmation" />
     <bpmn:sequenceFlow id="flow_shipping_sla_to_handle" sourceRef="boundary_shipping_sla" targetRef="task_handle_sla_breach" />
-    <bpmn:sequenceFlow id="flow_sla_breach_to_end" sourceRef="task_handle_sla_breach" targetRef="end_sla_notified" />
     <bpmn:sequenceFlow id="flow_delivery_to_gw" sourceRef="catch_delivery_confirmation" targetRef="gw_delivery_result" />
     <bpmn:sequenceFlow id="flow_delivery_yes" name="Delivered" sourceRef="gw_delivery_result" targetRef="task_send_delivery_confirmation" />
     <bpmn:sequenceFlow id="flow_delivery_no" name="Not Delivered" sourceRef="gw_delivery_result" targetRef="task_handle_delivery_issue">
@@ -350,359 +377,292 @@
     <bpmn:sequenceFlow id="flow_delivery_confirmation_to_end" sourceRef="task_send_delivery_confirmation" targetRef="end_order_complete" />
     <bpmn:sequenceFlow id="flow_issue_to_gw_reship" sourceRef="task_handle_delivery_issue" targetRef="gw_reship_or_refund" />
     <bpmn:sequenceFlow id="flow_gw_reship" name="Reship" sourceRef="gw_reship_or_refund" targetRef="task_reship_order" />
-    <bpmn:sequenceFlow id="flow_gw_refund" name="Refund" sourceRef="gw_reship_or_refund" targetRef="task_process_refund">
+    <bpmn:sequenceFlow id="flow_gw_refund" name="Refund" sourceRef="gw_reship_or_refund" targetRef="task_initiate_refund">
       <bpmn:conditionExpression>= resolution = "REFUND"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_initiate_to_refund" sourceRef="task_initiate_refund" targetRef="task_process_refund" />
     <bpmn:sequenceFlow id="flow_reship_to_end" sourceRef="task_reship_order" targetRef="end_reshipped" />
     <bpmn:sequenceFlow id="flow_refund_to_end" sourceRef="task_process_refund" targetRef="end_refunded" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="order-management-process">
-
-      <!-- ══════════════════════════════════════════════════════
-           SECTION 1 — ORDER VALIDATION
-           Main spine: y-center=280  Tasks top=240  GW top=255  Events top=262
-           ══════════════════════════════════════════════════════ -->
       <bpmndi:BPMNShape id="Shape_start" bpmnElement="start_event_order_received">
         <dc:Bounds x="162" y="262" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="157" y="305" width="46" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_validate" bpmnElement="task_validate_order">
         <dc:Bounds x="250" y="240" width="100" height="80" />
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_gw_valid" bpmnElement="gw_order_valid" isMarkerVisible="true">
         <dc:Bounds x="405" y="255" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="412" y="312" width="36" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- Rejection path — top lane y=80-120 -->
       <bpmndi:BPMNShape id="Shape_rejection" bpmnElement="task_send_rejection">
         <dc:Bounds x="510" y="80" width="100" height="80" />
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_end_rejected" bpmnElement="end_order_rejected">
         <dc:Bounds x="670" y="102" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="664" y="145" width="48" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- ══════════════════════════════════════════════════════
-           SECTION 2 — INVENTORY CHECK
-           ══════════════════════════════════════════════════════ -->
       <bpmndi:BPMNShape id="Shape_check_inv" bpmnElement="task_check_inventory">
         <dc:Bounds x="510" y="240" width="100" height="80" />
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_gw_stock" bpmnElement="gw_in_stock" isMarkerVisible="true">
         <dc:Bounds x="665" y="255" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="672" y="218" width="34" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- Backorder path — bottom lane y=420-560 -->
       <bpmndi:BPMNShape id="Shape_backorder" bpmnElement="task_notify_backorder">
         <dc:Bounds x="640" y="420" width="100" height="80" />
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_timer_restock" bpmnElement="timer_wait_restock">
         <dc:Bounds x="672" y="560" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="660" y="603" width="60" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- ══════════════════════════════════════════════════════
-           SECTION 3 — RESERVE & PAYMENT
-           ══════════════════════════════════════════════════════ -->
       <bpmndi:BPMNShape id="Shape_reserve" bpmnElement="task_reserve_inventory">
         <dc:Bounds x="770" y="240" width="100" height="80" />
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_payment" bpmnElement="task_process_payment">
         <dc:Bounds x="930" y="240" width="100" height="80" />
       </bpmndi:BPMNShape>
-
-      <!-- Payment error boundary (non-interrupting on right-bottom of task) -->
-      <bpmndi:BPMNShape id="Shape_boundary_payment" bpmnElement="boundary_payment_error">
-        <dc:Bounds x="952" y="302" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="990" y="326" width="44" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-
-      <!-- Payment error handling — bottom lane y=420 -->
       <bpmndi:BPMNShape id="Shape_handle_payment" bpmnElement="task_handle_payment_failure">
-        <dc:Bounds x="920" y="420" width="100" height="80" />
+        <dc:Bounds x="920" y="480" width="100" height="80" />
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_end_payment_error" bpmnElement="end_payment_error">
-        <dc:Bounds x="1080" y="442" width="36" height="36" />
+        <dc:Bounds x="1080" y="502" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1072" y="485" width="52" height="27" />
+          <dc:Bounds x="1074" y="545" width="48" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_gw_payment" bpmnElement="gw_payment_result" isMarkerVisible="true">
         <dc:Bounds x="1085" y="255" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1080" y="312" width="60" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- Payment declined path — bottom lane y=420 -->
       <bpmndi:BPMNShape id="Shape_notify_payment" bpmnElement="task_notify_payment_failed">
         <dc:Bounds x="1200" y="420" width="100" height="80" />
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_end_declined" bpmnElement="end_payment_declined">
         <dc:Bounds x="1360" y="442" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1341" y="485" width="75" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- ══════════════════════════════════════════════════════
-           SECTION 4 — PARALLEL SPLIT / PREPARE & CONFIRM
-           ══════════════════════════════════════════════════════ -->
       <bpmndi:BPMNShape id="Shape_parallel_split" bpmnElement="gw_parallel_split">
         <dc:Bounds x="1235" y="255" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1242" y="312" width="37" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- Upper parallel branch y=190 -->
       <bpmndi:BPMNShape id="Shape_prepare_ship" bpmnElement="task_prepare_shipment">
         <dc:Bounds x="1360" y="190" width="100" height="80" />
       </bpmndi:BPMNShape>
-
-      <!-- Lower parallel branch y=320 -->
       <bpmndi:BPMNShape id="Shape_send_confirm" bpmnElement="task_send_confirmation">
         <dc:Bounds x="1360" y="320" width="100" height="80" />
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_parallel_join" bpmnElement="gw_parallel_join">
         <dc:Bounds x="1525" y="255" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1538" y="312" width="24" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- ══════════════════════════════════════════════════════
-           SECTION 5 — EVENT-BASED GATEWAY & BRANCHES
-           ══════════════════════════════════════════════════════ -->
       <bpmndi:BPMNShape id="Shape_event_gw" bpmnElement="gw_event_based">
         <dc:Bounds x="1655" y="255" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1651" y="312" width="58" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- Cancellation catch — top lane y=102 -->
       <bpmndi:BPMNShape id="Shape_catch_cancel" bpmnElement="catch_cancellation">
         <dc:Bounds x="1782" y="102" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1762" y="145" width="76" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="Shape_process_cancel" bpmnElement="task_process_cancellation">
-        <dc:Bounds x="1880" y="80" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="Shape_end_cancelled" bpmnElement="end_order_cancelled">
-        <dc:Bounds x="2042" y="102" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="2034" y="145" width="52" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-
-      <!-- SLA breach catch — bottom lane y=440 -->
-      <bpmndi:BPMNShape id="Shape_catch_sla" bpmnElement="catch_sla_breach">
-        <dc:Bounds x="1782" y="440" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1769" y="483" width="62" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="Shape_escalate" bpmnElement="task_escalate_manager">
-        <dc:Bounds x="1880" y="418" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <!-- Shipment-ready catch — main lane y=262 -->
-      <bpmndi:BPMNShape id="Shape_catch_ship_ready" bpmnElement="catch_shipment_ready">
+      <bpmndi:BPMNShape id="Shape_catch_shipment_ready" bpmnElement="catch_shipment_ready">
         <dc:Bounds x="1782" y="262" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1775" y="305" width="50" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- ══════════════════════════════════════════════════════
-           SECTION 6 — PRE-SHIP MERGE GATEWAY
-           ══════════════════════════════════════════════════════ -->
-      <bpmndi:BPMNShape id="Shape_merge_gw" bpmnElement="gw_pre_ship_merge">
-        <dc:Bounds x="2055" y="255" width="50" height="50" />
+      <bpmndi:BPMNShape id="Shape_approve_cancel" bpmnElement="task_approve_cancellation">
+        <dc:Bounds x="1880" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_process_cancel" bpmnElement="task_process_cancellation">
+        <dc:Bounds x="2040" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_cancelled" bpmnElement="end_order_cancelled">
+        <dc:Bounds x="2200" y="102" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2056" y="312" width="48" height="27" />
+          <dc:Bounds x="2192" y="145" width="52" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- ══════════════════════════════════════════════════════
-           SECTION 7 — SHIPMENT SUBPROCESS (expanded)
-           Bounds: x=2170, y=185, w=800, h=200  (right=2970, bottom=385)
-           Internal flow centered at y=280
-           ══════════════════════════════════════════════════════ -->
-      <bpmndi:BPMNShape id="Shape_subprocess_shipment" bpmnElement="subprocess_shipment" isExpanded="true">
-        <dc:Bounds x="2170" y="185" width="800" height="200" />
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="Shape_ship_start" bpmnElement="ship_start">
-        <dc:Bounds x="2222" y="262" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="2206" y="305" width="68" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-
-      <!-- gap 52 → Assign Carrier -->
-      <bpmndi:BPMNShape id="Shape_assign_carrier" bpmnElement="task_assign_carrier">
-        <dc:Bounds x="2310" y="240" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <!-- gap 50 → Generate Shipping Label -->
-      <bpmndi:BPMNShape id="Shape_generate_label" bpmnElement="task_generate_label">
-        <dc:Bounds x="2460" y="240" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <!-- gap 50 → Pick & Pack Items -->
-      <bpmndi:BPMNShape id="Shape_pick_pack" bpmnElement="task_pick_pack">
-        <dc:Bounds x="2610" y="240" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <!-- gap 50 → Dispatch to Carrier -->
-      <bpmndi:BPMNShape id="Shape_dispatch_carrier" bpmnElement="task_dispatch_carrier">
-        <dc:Bounds x="2760" y="240" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <!-- gap 50 → Shipment Dispatched end event -->
-      <bpmndi:BPMNShape id="Shape_ship_end" bpmnElement="ship_end">
-        <dc:Bounds x="2912" y="262" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="2896" y="305" width="68" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-
-      <!-- Shipping SLA boundary (non-interrupting) on subprocess bottom edge -->
-      <bpmndi:BPMNShape id="Shape_boundary_sla" bpmnElement="boundary_shipping_sla">
-        <dc:Bounds x="2202" y="367" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="2238" y="388" width="68" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-
-      <!-- SLA handler below subprocess  y=460 -->
       <bpmndi:BPMNShape id="Shape_handle_sla" bpmnElement="task_handle_sla_breach">
-        <dc:Bounds x="2170" y="460" width="100" height="80" />
+        <dc:Bounds x="1900" y="500" width="100" height="80" />
       </bpmndi:BPMNShape>
-
+      <bpmndi:BPMNShape id="Shape_catch_sla" bpmnElement="catch_sla_breach">
+        <dc:Bounds x="1782" y="522" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1770" y="484.5" width="59" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_end_sla" bpmnElement="end_sla_notified">
-        <dc:Bounds x="2330" y="482" width="36" height="36" />
+        <dc:Bounds x="2092" y="522" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2313" y="525" width="74" height="27" />
+          <dc:Bounds x="2075" y="565" width="74" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- ══════════════════════════════════════════════════════
-           SECTION 8 — DELIVERY & RESOLUTION
-           All downstream of subprocess (right edge=2970), gap=60
-           catch_delivery starts at x=3030
-           ══════════════════════════════════════════════════════ -->
+      <bpmndi:BPMNShape id="Shape_subprocess_shipment" bpmnElement="subprocess_shipment" isExpanded="true">
+        <dc:Bounds x="1900" y="185" width="1260" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_ship_start" bpmnElement="ship_start">
+        <dc:Bounds x="1952" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1936" y="305" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_catch_ship_ready_item" bpmnElement="catch_shipment_ready_item">
+        <dc:Bounds x="2030" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2020" y="305" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_notify_ship_approval" bpmnElement="task_notify_shipment_approval">
+        <dc:Bounds x="2110" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_approve_shipment" bpmnElement="task_approve_shipment">
+        <dc:Bounds x="2260" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_assign_carrier" bpmnElement="task_assign_carrier">
+        <dc:Bounds x="2410" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_generate_label" bpmnElement="task_generate_label">
+        <dc:Bounds x="2560" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_pick_pack" bpmnElement="task_pick_pack">
+        <dc:Bounds x="2710" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_dispatch_carrier" bpmnElement="task_dispatch_carrier">
+        <dc:Bounds x="2860" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_ship_end" bpmnElement="ship_end">
+        <dc:Bounds x="3022" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3006" y="305" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_ship_start_ready" bpmnElement="flow_ship_start_to_ready">
+        <di:waypoint x="1988" y="280" />
+        <di:waypoint x="2030" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ready_notify" bpmnElement="flow_ready_to_notify">
+        <di:waypoint x="2066" y="280" />
+        <di:waypoint x="2110" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_notify_approve" bpmnElement="flow_notify_to_approve">
+        <di:waypoint x="2210" y="280" />
+        <di:waypoint x="2260" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_approve_assign" bpmnElement="flow_approve_to_assign">
+        <di:waypoint x="2360" y="280" />
+        <di:waypoint x="2410" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_assign_label" bpmnElement="flow_assign_to_label">
+        <di:waypoint x="2510" y="280" />
+        <di:waypoint x="2560" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_label_pick" bpmnElement="flow_label_to_pick">
+        <di:waypoint x="2660" y="280" />
+        <di:waypoint x="2710" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_pick_dispatch" bpmnElement="flow_pick_to_dispatch">
+        <di:waypoint x="2810" y="280" />
+        <di:waypoint x="2860" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_dispatch_end" bpmnElement="flow_dispatch_to_end">
+        <di:waypoint x="2960" y="280" />
+        <di:waypoint x="3022" y="280" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="Shape_catch_delivery" bpmnElement="catch_delivery_confirmation">
-        <dc:Bounds x="3030" y="262" width="36" height="36" />
+        <dc:Bounds x="3220" y="262" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3020" y="305" width="56" height="27" />
+          <dc:Bounds x="3210" y="305" width="56" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- gap 54 → delivery gateway -->
       <bpmndi:BPMNShape id="Shape_gw_delivery" bpmnElement="gw_delivery_result" isMarkerVisible="true">
-        <dc:Bounds x="3120" y="255" width="50" height="50" />
+        <dc:Bounds x="3310" y="255" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3110" y="312" width="70" height="27" />
+          <dc:Bounds x="3300" y="312" width="70" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- gap 50 → delivery outcome tasks -->
-      <!-- Upper: Send Delivery Confirmation -->
       <bpmndi:BPMNShape id="Shape_send_delivery_confirm" bpmnElement="task_send_delivery_confirmation">
-        <dc:Bounds x="3230" y="190" width="100" height="80" />
+        <dc:Bounds x="3420" y="190" width="100" height="80" />
       </bpmndi:BPMNShape>
-
-      <!-- Lower: Handle Delivery Issue -->
-      <bpmndi:BPMNShape id="Shape_delivery_issue" bpmnElement="task_handle_delivery_issue">
-        <dc:Bounds x="3230" y="320" width="100" height="80" />
-      </bpmndi:BPMNShape>
-
-      <!-- gap 60 → end / reship gateway -->
       <bpmndi:BPMNShape id="Shape_end_complete" bpmnElement="end_order_complete">
-        <dc:Bounds x="3390" y="212" width="36" height="36" />
+        <dc:Bounds x="3580" y="212" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3366" y="255" width="85" height="27" />
+          <dc:Bounds x="3556" y="255" width="85" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
+      <bpmndi:BPMNShape id="Shape_delivery_issue" bpmnElement="task_handle_delivery_issue">
+        <dc:Bounds x="3420" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_gw_reship" bpmnElement="gw_reship_or_refund" isMarkerVisible="true">
-        <dc:Bounds x="3390" y="335" width="50" height="50" />
+        <dc:Bounds x="3580" y="335" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3390" y="392" width="50" height="27" />
+          <dc:Bounds x="3639" y="346" width="49" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- gap 60 → reship / refund tasks -->
       <bpmndi:BPMNShape id="Shape_reship" bpmnElement="task_reship_order">
-        <dc:Bounds x="3500" y="270" width="100" height="80" />
+        <dc:Bounds x="3690" y="270" width="100" height="80" />
       </bpmndi:BPMNShape>
-
+      <bpmndi:BPMNShape id="Shape_initiate_refund" bpmnElement="task_initiate_refund">
+        <dc:Bounds x="3690" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_refund" bpmnElement="task_process_refund">
-        <dc:Bounds x="3500" y="400" width="100" height="80" />
+        <dc:Bounds x="3850" y="400" width="100" height="80" />
       </bpmndi:BPMNShape>
-
-      <!-- gap 60 → final ends -->
       <bpmndi:BPMNShape id="Shape_end_reshipped" bpmnElement="end_reshipped">
-        <dc:Bounds x="3660" y="292" width="36" height="36" />
+        <dc:Bounds x="3850" y="292" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3649" y="335" width="58" height="27" />
+          <dc:Bounds x="3839" y="335" width="58" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_end_refunded" bpmnElement="end_refunded">
-        <dc:Bounds x="3660" y="422" width="36" height="36" />
+        <dc:Bounds x="4010" y="422" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3651" y="465" width="54" height="27" />
+          <dc:Bounds x="4001" y="465" width="54" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- ══════════════════════════════════════════════════════
-           EDGES — SECTION 1: Order validation
-           ══════════════════════════════════════════════════════ -->
+      <bpmndi:BPMNShape id="Shape_boundary_sla" bpmnElement="boundary_shipping_sla">
+        <dc:Bounds x="1932" y="367" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1968" y="388" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_boundary_payment" bpmnElement="boundary_payment_error">
+        <dc:Bounds x="952" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="990" y="326" width="44" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Edge_start_validate" bpmnElement="flow_start_to_validate">
         <di:waypoint x="198" y="280" />
         <di:waypoint x="250" y="280" />
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_validate_gw" bpmnElement="flow_validate_to_gw_valid">
         <di:waypoint x="350" y="280" />
         <di:waypoint x="405" y="280" />
       </bpmndi:BPMNEdge>
-
-      <!-- Valid → Check Inventory -->
       <bpmndi:BPMNEdge id="Edge_gw_valid_yes" bpmnElement="flow_gw_valid_yes">
         <di:waypoint x="455" y="280" />
         <di:waypoint x="510" y="280" />
@@ -710,8 +670,6 @@
           <dc:Bounds x="471" y="258" width="23" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
-      <!-- Invalid → Send Rejection (up to y=120) -->
       <bpmndi:BPMNEdge id="Edge_gw_valid_no" bpmnElement="flow_gw_valid_no">
         <di:waypoint x="430" y="255" />
         <di:waypoint x="430" y="120" />
@@ -720,21 +678,14 @@
           <dc:Bounds x="432" y="178" width="36" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_reject_end" bpmnElement="flow_rejection_to_end">
         <di:waypoint x="610" y="120" />
         <di:waypoint x="670" y="120" />
       </bpmndi:BPMNEdge>
-
-      <!-- ══════════════════════════════════════════════════════
-           EDGES — SECTION 2: Inventory
-           ══════════════════════════════════════════════════════ -->
       <bpmndi:BPMNEdge id="Edge_inv_gw" bpmnElement="flow_inventory_to_gw_stock">
         <di:waypoint x="610" y="280" />
         <di:waypoint x="665" y="280" />
       </bpmndi:BPMNEdge>
-
-      <!-- In Stock → Reserve Inventory -->
       <bpmndi:BPMNEdge id="Edge_stock_yes" bpmnElement="flow_gw_stock_yes">
         <di:waypoint x="715" y="280" />
         <di:waypoint x="770" y="280" />
@@ -742,8 +693,6 @@
           <dc:Bounds x="722" y="258" width="41" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
-      <!-- Out of Stock → Notify Backorder (down to y=420) -->
       <bpmndi:BPMNEdge id="Edge_stock_no" bpmnElement="flow_gw_stock_no">
         <di:waypoint x="690" y="305" />
         <di:waypoint x="690" y="420" />
@@ -751,37 +700,26 @@
           <dc:Bounds x="696" y="354" width="62" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_backorder_timer" bpmnElement="flow_backorder_to_timer">
         <di:waypoint x="690" y="500" />
         <di:waypoint x="690" y="560" />
       </bpmndi:BPMNEdge>
-
-      <!-- ══════════════════════════════════════════════════════
-           EDGES — SECTION 3: Payment
-           ══════════════════════════════════════════════════════ -->
       <bpmndi:BPMNEdge id="Edge_reserve_payment" bpmnElement="flow_reserve_to_payment">
         <di:waypoint x="870" y="280" />
         <di:waypoint x="930" y="280" />
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_payment_gw" bpmnElement="flow_payment_to_gw_result">
         <di:waypoint x="1030" y="280" />
         <di:waypoint x="1085" y="280" />
       </bpmndi:BPMNEdge>
-
-      <!-- Payment error boundary → Handle Payment Failure (down to y=420) -->
       <bpmndi:BPMNEdge id="Edge_payment_err_handle" bpmnElement="flow_payment_error_to_handle">
         <di:waypoint x="970" y="338" />
-        <di:waypoint x="970" y="420" />
+        <di:waypoint x="970" y="480" />
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_handle_pay_end" bpmnElement="flow_handle_payment_to_end">
-        <di:waypoint x="1020" y="460" />
-        <di:waypoint x="1080" y="460" />
+        <di:waypoint x="1020" y="520" />
+        <di:waypoint x="1080" y="520" />
       </bpmndi:BPMNEdge>
-
-      <!-- Payment success → Parallel Split -->
       <bpmndi:BPMNEdge id="Edge_pay_success" bpmnElement="flow_payment_success">
         <di:waypoint x="1135" y="280" />
         <di:waypoint x="1235" y="280" />
@@ -789,8 +727,6 @@
           <dc:Bounds x="1163" y="258" width="43" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
-      <!-- Payment declined → Notify Payment Failed (down to y=440) -->
       <bpmndi:BPMNEdge id="Edge_pay_declined" bpmnElement="flow_payment_declined">
         <di:waypoint x="1110" y="305" />
         <di:waypoint x="1110" y="458" />
@@ -799,221 +735,136 @@
           <dc:Bounds x="1114" y="368" width="43" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_notify_pay_end" bpmnElement="flow_notify_payment_to_end">
         <di:waypoint x="1300" y="460" />
         <di:waypoint x="1360" y="460" />
       </bpmndi:BPMNEdge>
-
-      <!-- ══════════════════════════════════════════════════════
-           EDGES — SECTION 4: Parallel branches
-           ══════════════════════════════════════════════════════ -->
-      <!-- Parallel Split → Prepare Shipment (up) -->
       <bpmndi:BPMNEdge id="Edge_par_to_ship" bpmnElement="flow_parallel_to_shipment">
         <di:waypoint x="1260" y="255" />
         <di:waypoint x="1260" y="230" />
         <di:waypoint x="1360" y="230" />
       </bpmndi:BPMNEdge>
-
-      <!-- Parallel Split → Send Confirmation (down) -->
       <bpmndi:BPMNEdge id="Edge_par_to_confirm" bpmnElement="flow_parallel_to_confirmation">
         <di:waypoint x="1260" y="305" />
         <di:waypoint x="1260" y="360" />
         <di:waypoint x="1360" y="360" />
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_ship_join" bpmnElement="flow_shipment_to_join">
         <di:waypoint x="1460" y="230" />
         <di:waypoint x="1550" y="230" />
         <di:waypoint x="1550" y="255" />
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_confirm_join" bpmnElement="flow_confirmation_to_join">
         <di:waypoint x="1460" y="360" />
         <di:waypoint x="1550" y="360" />
         <di:waypoint x="1550" y="305" />
       </bpmndi:BPMNEdge>
-
-      <!-- ══════════════════════════════════════════════════════
-           EDGES — SECTION 5: Event-based gateway
-           ══════════════════════════════════════════════════════ -->
-      <bpmndi:BPMNEdge id="Edge_join_event" bpmnElement="flow_join_to_event_gw">
+      <bpmndi:BPMNEdge id="Edge_join_event_gw" bpmnElement="flow_join_to_event_gw">
         <di:waypoint x="1575" y="280" />
         <di:waypoint x="1655" y="280" />
       </bpmndi:BPMNEdge>
-
-      <!-- Event GW → Cancellation catch (up to y=120) -->
       <bpmndi:BPMNEdge id="Edge_evgw_cancel" bpmnElement="flow_event_gw_to_cancel">
         <di:waypoint x="1680" y="255" />
         <di:waypoint x="1680" y="120" />
         <di:waypoint x="1782" y="120" />
       </bpmndi:BPMNEdge>
-
-      <!-- Event GW → SLA breach catch (down to y=458) -->
       <bpmndi:BPMNEdge id="Edge_evgw_sla" bpmnElement="flow_event_gw_to_sla">
         <di:waypoint x="1680" y="305" />
-        <di:waypoint x="1680" y="458" />
-        <di:waypoint x="1782" y="458" />
+        <di:waypoint x="1680" y="540" />
+        <di:waypoint x="1782" y="540" />
       </bpmndi:BPMNEdge>
-
-      <!-- Event GW → Shipment Ready (straight) -->
-      <bpmndi:BPMNEdge id="Edge_evgw_ship" bpmnElement="flow_event_gw_to_shipment_ready">
+      <bpmndi:BPMNEdge id="Edge_evgw_ship" bpmnElement="flow_event_gw_to_shipment">
         <di:waypoint x="1705" y="280" />
         <di:waypoint x="1782" y="280" />
       </bpmndi:BPMNEdge>
-
-      <!-- Cancellation path -->
-      <bpmndi:BPMNEdge id="Edge_cancel_process" bpmnElement="flow_cancel_to_process">
+      <bpmndi:BPMNEdge id="Edge_cancel_approve" bpmnElement="flow_cancel_to_approve">
         <di:waypoint x="1818" y="120" />
         <di:waypoint x="1880" y="120" />
       </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="Edge_cancel_end" bpmnElement="flow_cancellation_to_end">
-        <di:waypoint x="1980" y="120" />
-        <di:waypoint x="2042" y="120" />
+      <bpmndi:BPMNEdge id="Edge_sla_handle" bpmnElement="flow_sla_to_handle">
+        <di:waypoint x="1818" y="540" />
+        <di:waypoint x="1900" y="540" />
       </bpmndi:BPMNEdge>
-
-      <!-- SLA escalation path -->
-      <bpmndi:BPMNEdge id="Edge_sla_escalate" bpmnElement="flow_sla_to_escalate">
-        <di:waypoint x="1818" y="458" />
-        <di:waypoint x="1880" y="458" />
-      </bpmndi:BPMNEdge>
-
-      <!-- Escalate → Pre-ship merge (up to y=305) -->
-      <bpmndi:BPMNEdge id="Edge_escalate_merge" bpmnElement="flow_escalate_to_merge">
-        <di:waypoint x="1980" y="458" />
-        <di:waypoint x="2080" y="458" />
-        <di:waypoint x="2080" y="305" />
-      </bpmndi:BPMNEdge>
-
-      <!-- Shipment Ready → Pre-ship merge (straight) -->
-      <bpmndi:BPMNEdge id="Edge_shipready_merge" bpmnElement="flow_shipment_ready_to_merge">
+      <bpmndi:BPMNEdge id="Edge_shipready_subprocess" bpmnElement="flow_shipment_ready_to_subprocess">
         <di:waypoint x="1818" y="280" />
-        <di:waypoint x="2055" y="280" />
+        <di:waypoint x="1900" y="280" />
       </bpmndi:BPMNEdge>
-
-      <!-- ══════════════════════════════════════════════════════
-           EDGES — SECTION 6: Into subprocess
-           ══════════════════════════════════════════════════════ -->
-      <!-- Merge GW → Subprocess left edge -->
-      <bpmndi:BPMNEdge id="Edge_merge_ship" bpmnElement="flow_merge_to_ship">
-        <di:waypoint x="2105" y="280" />
-        <di:waypoint x="2170" y="280" />
+      <bpmndi:BPMNEdge id="Edge_approve_cancel_process" bpmnElement="flow_approve_to_process_cancel">
+        <di:waypoint x="1980" y="120" />
+        <di:waypoint x="2040" y="120" />
       </bpmndi:BPMNEdge>
-
-      <!-- ══════════════════════════════════════════════════════
-           EDGES — SECTION 7: Shipment subprocess internals
-           ══════════════════════════════════════════════════════ -->
-      <bpmndi:BPMNEdge id="Edge_ship_start_assign" bpmnElement="flow_ship_start_to_assign">
-        <di:waypoint x="2258" y="280" />
-        <di:waypoint x="2310" y="280" />
+      <bpmndi:BPMNEdge id="Edge_cancel_end" bpmnElement="flow_cancellation_to_end">
+        <di:waypoint x="2140" y="120" />
+        <di:waypoint x="2200" y="120" />
       </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="Edge_assign_label" bpmnElement="flow_assign_to_label">
-        <di:waypoint x="2410" y="280" />
-        <di:waypoint x="2460" y="280" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="Edge_label_pick" bpmnElement="flow_label_to_pick">
-        <di:waypoint x="2560" y="280" />
-        <di:waypoint x="2610" y="280" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="Edge_pick_dispatch" bpmnElement="flow_pick_to_dispatch">
-        <di:waypoint x="2710" y="280" />
-        <di:waypoint x="2760" y="280" />
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="Edge_dispatch_end" bpmnElement="flow_dispatch_to_end">
-        <di:waypoint x="2860" y="280" />
-        <di:waypoint x="2912" y="280" />
-      </bpmndi:BPMNEdge>
-
-      <!-- Subprocess right edge → Delivery Confirmation catch -->
-      <bpmndi:BPMNEdge id="Edge_ship_delivery" bpmnElement="flow_ship_to_delivery">
-        <di:waypoint x="2970" y="280" />
-        <di:waypoint x="3030" y="280" />
-      </bpmndi:BPMNEdge>
-
-      <!-- SLA boundary timer → Handle SLA breach (down) -->
-      <bpmndi:BPMNEdge id="Edge_sla_boundary" bpmnElement="flow_shipping_sla_to_handle">
-        <di:waypoint x="2220" y="403" />
-        <di:waypoint x="2220" y="460" />
-      </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_sla_end" bpmnElement="flow_sla_breach_to_end">
-        <di:waypoint x="2270" y="500" />
-        <di:waypoint x="2330" y="500" />
+        <di:waypoint x="2000" y="540" />
+        <di:waypoint x="2092" y="540" />
       </bpmndi:BPMNEdge>
-
-      <!-- ══════════════════════════════════════════════════════
-           EDGES — SECTION 8: Delivery & resolution
-           ══════════════════════════════════════════════════════ -->
+      <bpmndi:BPMNEdge id="Edge_ship_delivery" bpmnElement="flow_ship_to_delivery">
+        <di:waypoint x="3160" y="280" />
+        <di:waypoint x="3220" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_sla_boundary" bpmnElement="flow_shipping_sla_to_handle">
+        <di:waypoint x="1950" y="403" />
+        <di:waypoint x="1950" y="500" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_delivery_gw" bpmnElement="flow_delivery_to_gw">
-        <di:waypoint x="3066" y="280" />
-        <di:waypoint x="3120" y="280" />
+        <di:waypoint x="3256" y="280" />
+        <di:waypoint x="3310" y="280" />
       </bpmndi:BPMNEdge>
-
-      <!-- Delivered Successfully (up) -->
       <bpmndi:BPMNEdge id="Edge_delivery_yes" bpmnElement="flow_delivery_yes">
-        <di:waypoint x="3145" y="255" />
-        <di:waypoint x="3145" y="230" />
-        <di:waypoint x="3230" y="230" />
+        <di:waypoint x="3335" y="255" />
+        <di:waypoint x="3335" y="230" />
+        <di:waypoint x="3420" y="230" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3153" y="233" width="47" height="14" />
+          <dc:Bounds x="3343" y="233" width="47" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
-      <!-- Not Delivered (down) -->
       <bpmndi:BPMNEdge id="Edge_delivery_no" bpmnElement="flow_delivery_no">
-        <di:waypoint x="3145" y="305" />
-        <di:waypoint x="3145" y="360" />
-        <di:waypoint x="3230" y="360" />
+        <di:waypoint x="3335" y="305" />
+        <di:waypoint x="3335" y="360" />
+        <di:waypoint x="3420" y="360" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3148" y="323" width="67" height="14" />
+          <dc:Bounds x="3338" y="323" width="67" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_confirm_delivery" bpmnElement="flow_delivery_confirmation_to_end">
-        <di:waypoint x="3330" y="230" />
-        <di:waypoint x="3390" y="230" />
+        <di:waypoint x="3520" y="230" />
+        <di:waypoint x="3580" y="230" />
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_issue_gw" bpmnElement="flow_issue_to_gw_reship">
-        <di:waypoint x="3330" y="360" />
-        <di:waypoint x="3390" y="360" />
+        <di:waypoint x="3520" y="360" />
+        <di:waypoint x="3580" y="360" />
       </bpmndi:BPMNEdge>
-
-      <!-- Reship (up) -->
       <bpmndi:BPMNEdge id="Edge_gw_reship" bpmnElement="flow_gw_reship">
-        <di:waypoint x="3440" y="360" />
-        <di:waypoint x="3440" y="310" />
-        <di:waypoint x="3500" y="310" />
+        <di:waypoint x="3605" y="335" />
+        <di:waypoint x="3605" y="310" />
+        <di:waypoint x="3690" y="310" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3443" y="323" width="35" height="14" />
+          <dc:Bounds x="3617" y="323" width="35" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
-      <!-- Refund (down) -->
       <bpmndi:BPMNEdge id="Edge_gw_refund" bpmnElement="flow_gw_refund">
-        <di:waypoint x="3415" y="385" />
-        <di:waypoint x="3415" y="440" />
-        <di:waypoint x="3500" y="440" />
+        <di:waypoint x="3605" y="385" />
+        <di:waypoint x="3605" y="440" />
+        <di:waypoint x="3690" y="440" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="3418" y="403" width="36" height="14" />
+          <dc:Bounds x="3608" y="403" width="36" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
+      <bpmndi:BPMNEdge id="Edge_initiate_refund" bpmnElement="flow_initiate_to_refund">
+        <di:waypoint x="3790" y="440" />
+        <di:waypoint x="3850" y="440" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_reship_end" bpmnElement="flow_reship_to_end">
-        <di:waypoint x="3600" y="310" />
-        <di:waypoint x="3660" y="310" />
+        <di:waypoint x="3790" y="310" />
+        <di:waypoint x="3850" y="310" />
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_refund_end" bpmnElement="flow_refund_to_end">
-        <di:waypoint x="3600" y="440" />
-        <di:waypoint x="3660" y="440" />
+        <di:waypoint x="3950" y="440" />
+        <di:waypoint x="4010" y="440" />
       </bpmndi:BPMNEdge>
-
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
