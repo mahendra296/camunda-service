@@ -34,7 +34,12 @@ public class ProcessPaymentWorker {
             @Variable String paymentMethod,
             @Variable(optional = true) String paymentToken) {
         try {
-            log.info("[ProcessPayment] orderId={} amount={} method={}, variable: {}", orderId, totalAmount, paymentMethod, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[ProcessPayment] orderId={} amount={} method={}, variable: {}",
+                    orderId,
+                    totalAmount,
+                    paymentMethod,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
@@ -55,7 +60,7 @@ public class ProcessPaymentWorker {
             log.warn("[ProcessPayment] orderId={} — payment declined by gateway", orderId);
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "paymentStatus",      "DECLINED",
+                            "paymentStatus", "DECLINED",
                             "paymentDeclineCode", "INSUFFICIENT_FUNDS",
                             "paymentProcessedAt", System.currentTimeMillis()))
                     .send()
@@ -64,15 +69,20 @@ public class ProcessPaymentWorker {
         }
 
         // ── Happy path ───────────────────────────────────────────────────────────
-        String transactionId = "TXN-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+        String transactionId =
+                "TXN-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
         log.info("[ProcessPayment] orderId={} SUCCESS transactionId={}", orderId, transactionId);
 
         client.newCompleteCommand(job.getKey())
                 .variables(Map.of(
-                        "paymentStatus",      "SUCCESS",
-                        "transactionId",      transactionId,
-                        "paymentProcessedAt", System.currentTimeMillis(),
-                        "paidAmount",         totalAmount))
+                        "paymentStatus",
+                        "SUCCESS",
+                        "transactionId",
+                        transactionId,
+                        "paymentProcessedAt",
+                        System.currentTimeMillis(),
+                        "paidAmount",
+                        totalAmount))
                 .send()
                 .join();
     }

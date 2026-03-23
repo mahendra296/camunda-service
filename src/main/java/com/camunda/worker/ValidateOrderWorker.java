@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.annotation.Variable;
-import io.camunda.client.api.command.InternalClientException;
 import io.camunda.client.api.response.ActivatedJob;
 import io.camunda.client.api.worker.JobClient;
 import java.util.HashMap;
@@ -31,7 +30,12 @@ public class ValidateOrderWorker {
             @Variable List<Map<String, Object>> items) {
 
         try {
-            log.info("[ValidateOrder] orderId={} customerId={}, Retries : {}, variable: {}", orderId, customerId, job.getRetries(), objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[ValidateOrder] orderId={} customerId={}, Retries : {}, variable: {}",
+                    orderId,
+                    customerId,
+                    job.getRetries(),
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
@@ -67,10 +71,7 @@ public class ValidateOrderWorker {
 
             log.info("[ValidateOrder] orderId={} valid={} totalAmount={}", orderId, orderValid, totalAmount);
 
-            client.newCompleteCommand(job.getKey())
-                    .variables(result)
-                    .send()
-                    .join();
+            client.newCompleteCommand(job.getKey()).variables(result).send().join();
 
         } catch (Exception e) {
             log.error("[ValidateOrder] Failed for orderId={}", orderId, e);

@@ -27,7 +27,12 @@ public class HandleSlaBreachWorker {
             @Variable String carrierName) {
 
         try {
-            log.error("[HandleSlaBreach] SHIPPING SLA BREACHED — orderId={} tracking={} carrier={}, variable: {}", orderId, trackingNumber, carrierName, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.error(
+                    "[HandleSlaBreach] SHIPPING SLA BREACHED — orderId={} tracking={} carrier={}, variable: {}",
+                    orderId,
+                    trackingNumber,
+                    carrierName,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }

@@ -1,6 +1,6 @@
-# Order Management Process — Camunda Service
+# Camunda Service — Order Management & Airtel Loan
 
-A Spring Boot + Camunda 8 service that orchestrates the complete order lifecycle using BPMN 2.0 workflows and Zeebe job workers.
+A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle** and the **Airtel loan origination** flow.
 
 ---
 
@@ -11,6 +11,8 @@ A Spring Boot + Camunda 8 service that orchestrates the complete order lifecycle
 3. [Complete Process Flow](#complete-process-flow)
 4. [Job Workers Reference](#job-workers-reference)
 5. [REST API Endpoints](#rest-api-endpoints)
+   - [Order Management API](#order-management-api)
+   - [Airtel Loan API](#airtel-loan-api)
 
 ---
 
@@ -47,10 +49,12 @@ Each **service task** in the BPMN has a `type` (job type). Zeebe creates a job w
 src/main/java/com/camunda/
 ├── controller/
 │   ├── OrderProcessController.java         ← Order & message endpoints
-│   └── UserTaskController.java             ← User task completion endpoints
+│   ├── UserTaskController.java             ← User task completion endpoints
+│   └── AirtelLoanController.java           ← Airtel loan initiation endpoint
 ├── service/
 │   ├── OrderProcessService.java            ← Process instance & message logic
-│   └── UserTaskService.java                ← Job completion via JobClient
+│   ├── UserTaskService.java                ← Job completion via JobClient
+│   └── AirtelLoanService.java              ← Starts airtel-loan-capbpm-process
 ├── worker/
 │   ├── UserTaskInterceptorWorker.java      ← io.camunda.zeebe:userTask — stores jobKey as variable
 │   ├── ValidateOrderWorker.java            ← order.validate
@@ -76,13 +80,18 @@ src/main/java/com/camunda/
 │   ├── OrderRequest.java
 │   ├── OrderItemDto.java
 │   ├── MessageRequest.java
-│   └── StartOrderResponse.java
+│   ├── StartOrderResponse.java
+│   ├── AirtelLoanRequest.java
+│   ├── AirtelLoanResponse.java
+│   ├── AirtelKycCallbackRequest.java
+│   └── AirtelLoanSubmitRequest.java
 └── exceptions/
     ├── GlobalExceptionHandler.java
     ├── OrderNotFoundException.java
     └── OrderConflictException.java
 src/main/resources/workflow/
-└── order-management-process.bpmn
+├── order-management-process.bpmn
+└── airtel-loan-process.bpmn
 ```
 
 ---
@@ -246,11 +255,33 @@ src/main/resources/workflow/
 
 ---
 
-## REST API Endpoints
+### Airtel Loan Workers
 
-> **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}`
+| Job Type | Worker | Key Output Variables |
+|---|---|---|
+| `capbpm.checkCustomerExists` | `CheckCustomerExistsWorker` | `customerExists`, `customerId`, `customerCheckedAt` |
+| `capbpm.fetchKycFromAirtel` | `FetchKycFromAirtelWorker` | `kycRequested`, `kycRequestedAt` — **process then waits at `catch_kyc_response`** |
+| `capbpm.storeKycData` | `StoreKycDataWorker` | `kycStored`, `customerId`, `kycStoredAt` |
+| `capbpm.optInCustomer` | `OptInCustomerWorker` | — |
+| `capbpm.notifyOptedIn` | `NotifyOptedInWorker` | — |
+| `gnu.getCreditScore` | `GetCreditScoreWorker` | `creditScore`, `creditGrade`, `eligible` |
+| `capbpm.sendEligibilityResult` | `SendEligibilityResultWorker` | — **process then waits at `catch_loan_application`** |
+| `capbpm.storeLoanInfo` | `StoreLoanInfoWorker` | `loanId`, `loanStored`, `loanStoredAt` |
+| `capbpm.sendSubmissionConfirmation` | `SendSubmissionConfirmationWorker` | — |
+| `cbs.checkCustomer` | `CheckCustomerInCbsWorker` | `customerInCbs`, `cbsAccountNo` |
+| `cbs.onboardCustomer` | `OnboardCustomerCbsWorker` | — |
+| `cbs.processLoanDisbursement` | `ProcessLoanDisbursementWorker` | `disbursementRef`, `disbursedAmount`, `disbursementStatus` |
+| `capbpm.notifyLoanApproved` | `NotifyLoanApprovedWorker` | — |
 
 ---
+
+## REST API Endpoints
+
+> **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}` · `{{msisdn}}`
+
+---
+
+## Order Management API
 
 ### Start Order — Happy Path
 
@@ -460,3 +491,140 @@ curl -X POST {{baseURL}}/api/tasks/{{taskKey}}/refund-initiation \
   -H "Content-Type: application/json" \
   -d '{ "refundAmount": 199.99, "refundMethod": "CREDIT_CARD", "note": "Full refund approved" }'
 ```
+
+---
+
+## Airtel Loan API
+
+> **Process ID:** `airtel-loan-capbpm-process`
+> **Correlation key:** `msisdn` — used by all message publish and catch events throughout the BPMN flow.
+> **Postman variable:** `{{msisdn}}` e.g. `254700123456`
+
+---
+
+### Step 1 — Airtel Initiates Loan Request
+
+> Simulates customer dialing \*123# on Airtel. Publishes a **LoanRequest** Zeebe message which triggers the `capbpm_start` message start event, creating a new `airtel-loan-capbpm-process` instance.
+
+```bash
+curl -X POST {{baseURL}}/api/airtel/loans/apply \
+  -H "Content-Type: application/json" \
+  -d '{
+    "msisdn": "254700123456",
+    "loanAmount": 5000.00,
+    "tenureMonths": 6,
+    "loanPurpose": "PERSONAL"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "msisdn": "254700123456",
+  "processInstanceKey": 2251799813685251,
+  "status": "INITIATED",
+  "message": "Loan request sent to CapBPM — process will start via LoanRequest message"
+}
+```
+
+---
+
+### Step 1 (variant) — Business Loan
+
+```bash
+curl -X POST {{baseURL}}/api/airtel/loans/apply \
+  -H "Content-Type: application/json" \
+  -d '{
+    "msisdn": "254711987654",
+    "loanAmount": 50000.00,
+    "tenureMonths": 12,
+    "loanPurpose": "BUSINESS"
+  }'
+```
+
+---
+
+### Step 2 — Airtel KYC Callback
+
+> CapBPM calls Airtel for KYC data (`capbpm.fetchKycFromAirtel` worker) then the process **pauses** at `catch_kyc_response`. Call this endpoint to resume: publishes a **KycResponse** message correlated to the waiting process instance via `msisdn`.
+
+```bash
+curl -X POST {{baseURL}}/api/airtel/kyc/callback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "msisdn": "254700123456",
+    "fullName": "John Mwangi",
+    "nationalId": "NID123456",
+    "dob": "1990-01-15",
+    "email": "john.mwangi@example.com"
+  }'
+```
+
+---
+
+### Step 3 — Airtel Submits Loan Application
+
+> After receiving the eligibility result, the process **pauses** at `catch_loan_application`. Call this endpoint to resume: publishes a **LoanApplication** message correlated to the waiting process instance via `msisdn`.
+
+```bash
+curl -X POST {{baseURL}}/api/airtel/loans/submit \
+  -H "Content-Type: application/json" \
+  -d '{
+    "msisdn": "254700123456",
+    "loanAmount": 5000.00,
+    "tenureMonths": 6,
+    "loanPurpose": "PERSONAL"
+  }'
+```
+
+---
+
+### Airtel Loan Process Flow
+
+```
+[Airtel] POST /api/airtel/loans/apply
+         → publishes LoanRequest message
+                 │
+                 ▼
+[CapBPM] capbpm_start (message start event)
+         → capbpm.checkCustomerExists
+                 │
+          <Customer Exists?>
+          ├── NO  → capbpm.fetchKycFromAirtel  ──► [PROCESS WAITS: catch_kyc_response]
+          │                                              │
+          │         [Airtel] POST /api/airtel/kyc/callback
+          │                  → publishes KycResponse message
+          │                              │
+          │         capbpm.storeKycData ◄┘
+          │         capbpm.optInCustomer
+          │
+          └── YES (merge) → capbpm.notifyOptedIn
+                                │
+                    gnu.getCreditScore
+                                │
+                    capbpm.sendEligibilityResult ──► [PROCESS WAITS: catch_loan_application]
+                                                              │
+                               [Airtel] POST /api/airtel/loans/submit
+                                        → publishes LoanApplication message
+                                                    │
+                    capbpm.storeLoanInfo ◄───────────┘
+                    capbpm.sendSubmissionConfirmation
+                                │
+                    cbs.checkCustomer
+                                │
+                    <Customer in CBS?>
+                    ├── NO  → cbs.onboardCustomer
+                    └── YES (merge) → cbs.processLoanDisbursement
+                                              │
+                                  capbpm.notifyLoanApproved
+                                              │
+                                     [END: Loan Disbursed]
+```
+
+| Decision point | Worker | Outcome variable | Effect |
+|---|---|---|---|
+| Check customer exists | `CheckCustomerExistsWorker` | `customerExists` | `false` → fetch KYC; `true` → skip to opt-in |
+| Get credit score | `GetCreditScoreWorker` | `eligible` | `false` → process ends; `true` → wait for loan application |
+| Check customer in CBS | `CheckCustomerInCbsWorker` | `customerInCbs` | `false` → onboard in CBS first; `true` → proceed to disbursement |
+

@@ -30,13 +30,18 @@ public class ProcessCancellationWorker {
             @Variable(name = "cancellationReason", optional = true) String cancellationReason) {
 
         try {
-            log.info("[ProcessCancellation] orderId={} reason={}, variable: {}", orderId, cancellationReason, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[ProcessCancellation] orderId={} reason={}, variable: {}",
+                    orderId,
+                    cancellationReason,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
 
         try {
-            String refundId = "REF-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase();
+            String refundId =
+                    "REF-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase();
 
             // TODO: release inventory reservation
             // TODO: issue refund via payment gateway
@@ -45,11 +50,16 @@ public class ProcessCancellationWorker {
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "cancellationReason", cancellationReason != null ? cancellationReason : "Customer requested",
-                            "refundId", refundId,
-                            "refundAmount", 0.0, // TODO: fetch from process variable
-                            "cancelledAt", System.currentTimeMillis(),
-                            "inventoryReleased", true))
+                            "cancellationReason",
+                            cancellationReason != null ? cancellationReason : "Customer requested",
+                            "refundId",
+                            refundId,
+                            "refundAmount",
+                            0.0, // TODO: fetch from process variable
+                            "cancelledAt",
+                            System.currentTimeMillis(),
+                            "inventoryReleased",
+                            true))
                     .send()
                     .join();
 

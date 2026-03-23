@@ -25,8 +25,7 @@ public class UserTaskController {
      */
     @PostMapping("/{taskKey}/shipment-approval")
     public ResponseEntity<Map<String, Object>> approveShipment(
-            @PathVariable long taskKey,
-            @RequestBody Map<String, Object> body) {
+            @PathVariable long taskKey, @RequestBody Map<String, Object> body) {
 
         var approved = Boolean.TRUE.equals(body.get("approved"));
         var note = (String) body.getOrDefault("note", "");
@@ -50,8 +49,7 @@ public class UserTaskController {
      */
     @PostMapping("/{taskKey}/cancellation-approval")
     public ResponseEntity<Map<String, Object>> approveCancellation(
-            @PathVariable long taskKey,
-            @RequestBody Map<String, Object> body) {
+            @PathVariable long taskKey, @RequestBody Map<String, Object> body) {
 
         var approved = Boolean.TRUE.equals(body.get("approved"));
         var reason = (String) body.getOrDefault("reason", "");
@@ -75,12 +73,9 @@ public class UserTaskController {
      */
     @PostMapping("/{taskKey}/refund-initiation")
     public ResponseEntity<Map<String, Object>> initiateRefund(
-            @PathVariable long taskKey,
-            @RequestBody Map<String, Object> body) {
+            @PathVariable long taskKey, @RequestBody Map<String, Object> body) {
 
-        var refundAmount = body.containsKey("refundAmount")
-                ? ((Number) body.get("refundAmount")).doubleValue()
-                : 0.0;
+        var refundAmount = body.containsKey("refundAmount") ? ((Number) body.get("refundAmount")).doubleValue() : 0.0;
         var refundMethod = (String) body.getOrDefault("refundMethod", "ORIGINAL_PAYMENT");
         var note = (String) body.getOrDefault("note", "");
 
@@ -108,8 +103,7 @@ public class UserTaskController {
      */
     @PostMapping("/{taskKey}/delivery-issue")
     public ResponseEntity<Map<String, Object>> handleDeliveryIssue(
-            @PathVariable long taskKey,
-            @RequestBody Map<String, Object> body) {
+            @PathVariable long taskKey, @RequestBody Map<String, Object> body) {
 
         var resolution = (String) body.getOrDefault("resolution", "RESHIP");
         var issueDescription = (String) body.getOrDefault("issueDescription", "");

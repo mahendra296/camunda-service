@@ -27,7 +27,11 @@ public class NotifyPaymentFailedWorker {
             @Variable String paymentDeclineCode) {
 
         try {
-            log.warn("[NotifyPaymentFailed] orderId={} declineCode={}, variable: {}", orderId, paymentDeclineCode, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.warn(
+                    "[NotifyPaymentFailed] orderId={} declineCode={}, variable: {}",
+                    orderId,
+                    paymentDeclineCode,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
@@ -37,9 +41,7 @@ public class NotifyPaymentFailedWorker {
             log.info("[NotifyPaymentFailed] Decline email sent to {} for orderId={}", customerEmail, orderId);
 
             client.newCompleteCommand(job.getKey())
-                    .variables(Map.of(
-                            "declineNotificationSent", true,
-                            "declineNotifiedAt", System.currentTimeMillis()))
+                    .variables(Map.of("declineNotificationSent", true, "declineNotifiedAt", System.currentTimeMillis()))
                     .send()
                     .join();
 

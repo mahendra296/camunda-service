@@ -34,21 +34,22 @@ public class UserTaskInterceptorWorker {
     private final CamundaClient camundaClient;
 
     @JobWorker(type = "io.camunda.zeebe:userTask", autoComplete = false, timeout = 86400000)
-    public void interceptUserTask(
-            JobClient client,
-            ActivatedJob job,
-            @Variable(optional = true) String orderId) {
+    public void interceptUserTask(JobClient client, ActivatedJob job, @Variable(optional = true) String orderId) {
 
         var elementId = job.getElementId();
         var jobKey = job.getKey();
         var variableName = elementId + "_jobKey";
 
-        log.info("[UserTaskInterceptor] User task active — elementId={} jobKey={} orderId={}",
-                elementId, jobKey, orderId);
+        log.info(
+                "[UserTaskInterceptor] User task active — elementId={} jobKey={} orderId={}",
+                elementId,
+                jobKey,
+                orderId);
 
         // Write the job key back as a process variable so it's visible in Operate
         // and can be retrieved without manual API queries.
-        camundaClient.newSetVariablesCommand(job.getProcessInstanceKey())
+        camundaClient
+                .newSetVariablesCommand(job.getProcessInstanceKey())
                 .variables(Map.of(variableName, jobKey))
                 .local(false)
                 .send()

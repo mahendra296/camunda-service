@@ -77,9 +77,13 @@ public class OrderProcessService {
      * This is caught inside the multi-instance subprocess by the per-item catch event,
      * allowing each product's subprocess instance to proceed independently.
      */
-    public void sendItemShipmentReadyMessage(String orderId, String productId, String shipmentNote, String warehouseId) {
-        log.info("[OrderProcessService] Sending ItemShipmentReady message for orderId={} productId={} warehouseId={}",
-                orderId, productId, warehouseId);
+    public void sendItemShipmentReadyMessage(
+            String orderId, String productId, String shipmentNote, String warehouseId) {
+        log.info(
+                "[OrderProcessService] Sending ItemShipmentReady message for orderId={} productId={} warehouseId={}",
+                orderId,
+                productId,
+                warehouseId);
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("productId", productId);
@@ -103,8 +107,11 @@ public class OrderProcessService {
      * Correlates via orderId (the BPMN DeliveryConfirmation message catch event).
      */
     public void sendShipmentDeliveryUpdate(String orderId, String trackingNumber, boolean success, String note) {
-        log.info("[OrderProcessService] Sending shipment delivery update for orderId={} tracking={} success={}",
-                orderId, trackingNumber, success);
+        log.info(
+                "[OrderProcessService] Sending shipment delivery update for orderId={} tracking={} success={}",
+                orderId,
+                trackingNumber,
+                success);
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("deliverySuccess", success);
@@ -126,9 +133,14 @@ public class OrderProcessService {
      * Publishes a ShipmentStatusUpdate message so interested listeners can react
      * (e.g., notify the customer of IN_TRANSIT or OUT_FOR_DELIVERY events).
      */
-    public void updateShipmentStatus(String orderId, String trackingNumber, String status, String location, String note) {
-        log.info("[OrderProcessService] Updating shipment status for orderId={} tracking={} status={} location={}",
-                orderId, trackingNumber, status, location);
+    public void updateShipmentStatus(
+            String orderId, String trackingNumber, String status, String location, String note) {
+        log.info(
+                "[OrderProcessService] Updating shipment status for orderId={} tracking={} status={} location={}",
+                orderId,
+                trackingNumber,
+                status,
+                location);
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("trackingNumber", trackingNumber);
@@ -158,8 +170,10 @@ public class OrderProcessService {
     }
 
     public void sendDeliveryConfirmationMessage(String orderId, boolean deliverySuccess, String note) {
-        log.info("[OrderProcessService] Sending DeliveryConfirmation message for orderId={} success={}",
-                orderId, deliverySuccess);
+        log.info(
+                "[OrderProcessService] Sending DeliveryConfirmation message for orderId={} success={}",
+                orderId,
+                deliverySuccess);
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("deliverySuccess", deliverySuccess);

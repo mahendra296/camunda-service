@@ -6,7 +6,6 @@ import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.annotation.Variable;
 import io.camunda.client.api.response.ActivatedJob;
 import io.camunda.client.api.worker.JobClient;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -53,7 +52,8 @@ public class AssignCarrierWorker {
                     ? CARRIERS.get(1) // QuickDeliver EXPRESS
                     : CARRIERS.get(0); // FastShip STANDARD
 
-            String carrierId = "CAR-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            String carrierId =
+                    "CAR-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
             String productId = currentItem != null ? String.valueOf(currentItem.get("productId")) : "UNKNOWN";
             log.info(

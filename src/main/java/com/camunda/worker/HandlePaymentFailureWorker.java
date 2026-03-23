@@ -27,7 +27,11 @@ public class HandlePaymentFailureWorker {
             @Variable String reservationId) {
 
         try {
-            log.error("[HandlePaymentFailure] orderId={} — releasing inventory reservation={}, variable: {}", orderId, reservationId, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.error(
+                    "[HandlePaymentFailure] orderId={} — releasing inventory reservation={}, variable: {}",
+                    orderId,
+                    reservationId,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }

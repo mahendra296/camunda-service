@@ -23,13 +23,13 @@ public class CheckInventoryWorker {
 
     @JobWorker(type = "order.check-inventory", autoComplete = false)
     public void checkInventory(
-            JobClient client,
-            ActivatedJob job,
-            @Variable String orderId,
-            @Variable List<Map<String, Object>> items) {
+            JobClient client, ActivatedJob job, @Variable String orderId, @Variable List<Map<String, Object>> items) {
 
         try {
-            log.info("[CheckInventory] orderId={}, variable: {}", orderId, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[CheckInventory] orderId={}, variable: {}",
+                    orderId,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
@@ -59,10 +59,7 @@ public class CheckInventoryWorker {
 
             log.info("[CheckInventory] orderId={} inStock={} outOfStock={}", orderId, inStock, outOfStockItems);
 
-            client.newCompleteCommand(job.getKey())
-                    .variables(result)
-                    .send()
-                    .join();
+            client.newCompleteCommand(job.getKey()).variables(result).send().join();
 
         } catch (Exception e) {
             log.error("[CheckInventory] Failed for orderId={}", orderId, e);

@@ -28,7 +28,10 @@ public class ReshipOrderWorker {
             @Variable String customerEmail) {
 
         try {
-            log.info("[ReshipOrder] Creating reship for orderId={}, variable: {}", orderId, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[ReshipOrder] Creating reship for orderId={}, variable: {}",
+                    orderId,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
@@ -42,10 +45,14 @@ public class ReshipOrderWorker {
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "reshipTrackingNumber", newTrackingNumber,
-                            "reshipInitiatedAt", System.currentTimeMillis(),
-                            "reshipStatus", "DISPATCHED",
-                            "customerNotified", true))
+                            "reshipTrackingNumber",
+                            newTrackingNumber,
+                            "reshipInitiatedAt",
+                            System.currentTimeMillis(),
+                            "reshipStatus",
+                            "DISPATCHED",
+                            "customerNotified",
+                            true))
                     .send()
                     .join();
 

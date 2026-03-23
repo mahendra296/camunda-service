@@ -65,8 +65,7 @@ public class NotifyShipmentApprovalWorker {
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "shipmentApprovalNotifiedAt", System.currentTimeMillis(),
-                            "approvalProductId", productId))
+                            "shipmentApprovalNotifiedAt", System.currentTimeMillis(), "approvalProductId", productId))
                     .send()
                     .join();
 

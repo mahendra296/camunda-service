@@ -1,0 +1,975 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_AirtelLoan" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.45.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <bpmn:message id="Message_LoanRequest" name="LoanRequest" />
+  <bpmn:message id="Message_KycResponse" name="KycResponse">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=msisdn" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_LoanApplication" name="LoanApplication">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=msisdn" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_KycRequest" name="KycRequest">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=msisdn" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_OptedInNotification" name="OptedInNotification">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=msisdn" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_EligibilityResult" name="EligibilityResult">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=msisdn" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_SubmissionConfirmation" name="SubmissionConfirmation">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=msisdn" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_LoanApproved" name="LoanApproved">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=msisdn" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:collaboration id="Collaboration_AirtelLoan" name="Airtel Loan Collaboration">
+    <bpmn:participant id="Participant_Airtel" name="Airtel" processRef="Process_Airtel" />
+    <bpmn:participant id="Participant_CapBPM" name="CAPBPM" processRef="airtel-loan-capbpm-process" />
+    <bpmn:participant id="Participant_GNU" name="GnuCreditScore" processRef="Process_GNU" />
+    <bpmn:participant id="Participant_CBS" name="CBS (Core Banking)" processRef="Process_CBS" />
+    <bpmn:messageFlow id="mf_loan_request" name="Loan Request" sourceRef="airtel_send_loan_req" targetRef="capbpm_start" />
+    <bpmn:messageFlow id="mf_kyc_request" name="KYC Request" sourceRef="task_fetch_kyc" targetRef="airtel_recv_kyc_request" />
+    <bpmn:messageFlow id="mf_kyc_response" name="KYC Response" sourceRef="airtel_send_kyc_response" targetRef="catch_kyc_response" />
+    <bpmn:messageFlow id="mf_optedin" name="Opted-In Notification" sourceRef="task_notify_optedin" targetRef="airtel_recv_optedin" />
+    <bpmn:messageFlow id="mf_credit_request" name="Credit Score Request" sourceRef="task_get_credit_score" targetRef="gnu_start" />
+    <bpmn:messageFlow id="mf_credit_response" name="Credit Score Response" sourceRef="gnu_end" targetRef="task_get_credit_score" />
+    <bpmn:messageFlow id="mf_eligibility" name="Eligibility Result" sourceRef="task_send_eligibility" targetRef="airtel_recv_eligibility" />
+    <bpmn:messageFlow id="mf_loan_application" name="Loan Application" sourceRef="airtel_send_loan_app" targetRef="catch_loan_application" />
+    <bpmn:messageFlow id="mf_submission_conf" name="Submission Confirmation" sourceRef="task_send_submission_conf" targetRef="airtel_recv_submission_conf" />
+    <bpmn:messageFlow id="mf_cbs_check" name="Check Customer" sourceRef="task_check_cbs" targetRef="cbs_start" />
+    <bpmn:messageFlow id="mf_cbs_response" name="Customer Info Response" sourceRef="cbs_task_check" targetRef="task_check_cbs" />
+    <bpmn:messageFlow id="mf_cbs_onboard" name="Onboard Request" sourceRef="task_onboard_cbs" targetRef="cbs_task_onboard" />
+    <bpmn:messageFlow id="mf_cbs_disburse" name="Disbursement Request" sourceRef="task_process_disbursement" targetRef="cbs_task_disburse" />
+    <bpmn:messageFlow id="mf_loan_approved" name="Loan Approved" sourceRef="task_notify_approved" targetRef="airtel_recv_approval" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Airtel" name="Airtel" isExecutable="true">
+    <bpmn:endEvent id="airtel_end_not_eligible" name="Not Eligible">
+      <bpmn:incoming>af6_no</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="af1" sourceRef="airtel_start" targetRef="airtel_task_select" />
+    <bpmn:sequenceFlow id="af2" sourceRef="airtel_task_select" targetRef="airtel_send_loan_req" />
+    <bpmn:sequenceFlow id="af3a" sourceRef="airtel_send_loan_req" targetRef="airtel_recv_kyc_request" />
+    <bpmn:sequenceFlow id="af3b" sourceRef="airtel_recv_kyc_request" targetRef="airtel_task_provide_kyc" />
+    <bpmn:sequenceFlow id="af3c" sourceRef="airtel_task_provide_kyc" targetRef="airtel_send_kyc_response" />
+    <bpmn:sequenceFlow id="af3d" sourceRef="airtel_send_kyc_response" targetRef="airtel_recv_optedin" />
+    <bpmn:sequenceFlow id="af4" sourceRef="airtel_recv_optedin" targetRef="airtel_recv_eligibility" />
+    <bpmn:sequenceFlow id="af5" sourceRef="airtel_recv_eligibility" targetRef="airtel_gw_eligible" />
+    <bpmn:sequenceFlow id="af6_yes" name="Eligible" sourceRef="airtel_gw_eligible" targetRef="airtel_send_loan_app">
+      <bpmn:conditionExpression>=eligible = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="af6_no" name="Not Eligible" sourceRef="airtel_gw_eligible" targetRef="airtel_end_not_eligible">
+      <bpmn:conditionExpression>=eligible = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="af7" sourceRef="airtel_send_loan_app" targetRef="airtel_recv_submission_conf" />
+    <bpmn:sequenceFlow id="af8" sourceRef="airtel_recv_submission_conf" targetRef="airtel_recv_approval" />
+    <bpmn:sequenceFlow id="af9" sourceRef="airtel_recv_approval" targetRef="airtel_end_approved" />
+    <bpmn:serviceTask id="airtel_send_kyc_response" name="Send KYC&#10;Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="airtel.sendKycResponse" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>af3c</bpmn:incoming>
+      <bpmn:outgoing>af3d</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="airtel_task_provide_kyc" name="Provide KYC&#10;Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="airtel.provideKycData" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>af3b</bpmn:incoming>
+      <bpmn:outgoing>af3c</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="airtel_recv_kyc_request" name="Receive KYC&#10;Request">
+      <bpmn:incoming>af3a</bpmn:incoming>
+      <bpmn:outgoing>af3b</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="med_recv_kyc_req" messageRef="Message_KycRequest" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="airtel_send_loan_req" name="Send Loan&#10;Request">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="airtel.sendLoanRequest" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>af2</bpmn:incoming>
+      <bpmn:outgoing>af3a</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="airtel_task_select" name="Select Apply&#10;Loan Option">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="airtel.selectLoanOption" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>af1</bpmn:incoming>
+      <bpmn:outgoing>af2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:startEvent id="airtel_start" name="Customer Dials&#10;*123#">
+      <bpmn:outgoing>af1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="airtel_recv_optedin" name="Opted-In&#10;Confirmed">
+      <bpmn:incoming>af3d</bpmn:incoming>
+      <bpmn:outgoing>af4</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="med_recv_optedin" messageRef="Message_OptedInNotification" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="airtel_recv_eligibility" name="Receive&#10;Eligibility Result">
+      <bpmn:incoming>af4</bpmn:incoming>
+      <bpmn:outgoing>af5</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="med_recv_eligibility" messageRef="Message_EligibilityResult" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="airtel_gw_eligible" name="Eligible?">
+      <bpmn:incoming>af5</bpmn:incoming>
+      <bpmn:outgoing>af6_yes</bpmn:outgoing>
+      <bpmn:outgoing>af6_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="airtel_send_loan_app" name="Submit Loan&#10;Application">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="airtel.sendLoanApplication" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>af6_yes</bpmn:incoming>
+      <bpmn:outgoing>af7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="airtel_end_approved" name="Loan Approved">
+      <bpmn:incoming>af9</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="airtel_recv_approval" name="Receive Loan&#10;Approval">
+      <bpmn:incoming>af8</bpmn:incoming>
+      <bpmn:outgoing>af9</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="med_recv_approval" messageRef="Message_LoanApproved" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="airtel_recv_submission_conf" name="Receive Submission&#10;Confirmation">
+      <bpmn:incoming>af7</bpmn:incoming>
+      <bpmn:outgoing>af8</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="med_recv_submission_conf" messageRef="Message_SubmissionConfirmation" />
+    </bpmn:intermediateCatchEvent>
+  </bpmn:process>
+  <bpmn:process id="airtel-loan-capbpm-process" name="CAPBPM — Airtel Loan Orchestration" isExecutable="true">
+    <bpmn:startEvent id="capbpm_start" name="Receive Loan&#10;Request from Airtel">
+      <bpmn:outgoing>cf1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="med_capbpm_start" messageRef="Message_LoanRequest" />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="task_check_customer" name="Check Customer&#10;Exists in CapBPM">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="capbpm.checkCustomerExists" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf1</bpmn:incoming>
+      <bpmn:outgoing>cf2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="gw_customer_exists" name="Customer&#10;Exists?">
+      <bpmn:incoming>cf2</bpmn:incoming>
+      <bpmn:outgoing>cf3_yes</bpmn:outgoing>
+      <bpmn:outgoing>cf3_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_fetch_kyc" name="Fetch KYC&#10;from Airtel">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="capbpm.fetchKycFromAirtel" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf3_no</bpmn:incoming>
+      <bpmn:outgoing>cf4a</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="gw_merge_optin">
+      <bpmn:incoming>cf6</bpmn:incoming>
+      <bpmn:incoming>cf3_yes</bpmn:incoming>
+      <bpmn:outgoing>cf7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_notify_optedin" name="Notify Airtel&#10;Customer Opted-In">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="capbpm.notifyOptedIn" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf7</bpmn:incoming>
+      <bpmn:outgoing>cf8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="cf1" sourceRef="capbpm_start" targetRef="task_check_customer" />
+    <bpmn:sequenceFlow id="cf2" sourceRef="task_check_customer" targetRef="gw_customer_exists" />
+    <bpmn:sequenceFlow id="cf3_yes" name="Existing Customer" sourceRef="gw_customer_exists" targetRef="gw_merge_optin">
+      <bpmn:conditionExpression>=customerExists = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="cf3_no" name="New Customer" sourceRef="gw_customer_exists" targetRef="task_fetch_kyc">
+      <bpmn:conditionExpression>=customerExists = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="cf4a" sourceRef="task_fetch_kyc" targetRef="catch_kyc_response" />
+    <bpmn:sequenceFlow id="cf4b" sourceRef="catch_kyc_response" targetRef="task_store_kyc" />
+    <bpmn:sequenceFlow id="cf5" sourceRef="task_store_kyc" targetRef="task_optin_customer" />
+    <bpmn:sequenceFlow id="cf6" sourceRef="task_optin_customer" targetRef="gw_merge_optin" />
+    <bpmn:sequenceFlow id="cf7" sourceRef="gw_merge_optin" targetRef="task_notify_optedin" />
+    <bpmn:sequenceFlow id="cf8" sourceRef="task_notify_optedin" targetRef="task_get_credit_score" />
+    <bpmn:sequenceFlow id="cf9" sourceRef="task_get_credit_score" targetRef="task_send_eligibility" />
+    <bpmn:sequenceFlow id="cf10" sourceRef="task_send_eligibility" targetRef="gw_eligible" />
+    <bpmn:sequenceFlow id="cf11_yes" name="Eligible" sourceRef="gw_eligible" targetRef="catch_loan_application">
+      <bpmn:conditionExpression>=eligible = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="cf11b" sourceRef="catch_loan_application" targetRef="task_store_loan" />
+    <bpmn:sequenceFlow id="cf11_no" name="Not Eligible" sourceRef="gw_eligible" targetRef="end_not_eligible">
+      <bpmn:conditionExpression>=eligible = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="cf12" sourceRef="task_store_loan" targetRef="task_send_submission_conf" />
+    <bpmn:sequenceFlow id="cf13" sourceRef="task_send_submission_conf" targetRef="task_check_cbs" />
+    <bpmn:sequenceFlow id="cf14" sourceRef="task_check_cbs" targetRef="gw_customer_in_cbs" />
+    <bpmn:sequenceFlow id="cf15_no" name="Not in CBS" sourceRef="gw_customer_in_cbs" targetRef="task_onboard_cbs">
+      <bpmn:conditionExpression>=customerInCbs = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="cf15_yes" name="In CBS" sourceRef="gw_customer_in_cbs" targetRef="gw_merge_cbs">
+      <bpmn:conditionExpression>=customerInCbs = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="cf16" sourceRef="task_onboard_cbs" targetRef="gw_merge_cbs" />
+    <bpmn:sequenceFlow id="cf17" sourceRef="gw_merge_cbs" targetRef="task_process_disbursement" />
+    <bpmn:sequenceFlow id="cf18" sourceRef="task_process_disbursement" targetRef="task_notify_approved" />
+    <bpmn:sequenceFlow id="cf19" sourceRef="task_notify_approved" targetRef="capbpm_end" />
+    <bpmn:serviceTask id="task_optin_customer" name="Opt-In Customer&#10;in CapBPM">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="capbpm.optInCustomer" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf5</bpmn:incoming>
+      <bpmn:outgoing>cf6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_store_kyc" name="Store KYC&#10;Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="capbpm.storeKycData" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf4b</bpmn:incoming>
+      <bpmn:outgoing>cf5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="catch_kyc_response" name="Receive KYC&#10;Response">
+      <bpmn:incoming>cf4a</bpmn:incoming>
+      <bpmn:outgoing>cf4b</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="med_catch_kyc" messageRef="Message_KycResponse" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="task_get_credit_score" name="Get Credit Score&#10;(GnuCreditScore)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="gnu.getCreditScore" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf8</bpmn:incoming>
+      <bpmn:outgoing>cf9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_send_eligibility" name="Send Eligibility&#10;Result to Airtel">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="capbpm.sendEligibilityResult" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf9</bpmn:incoming>
+      <bpmn:outgoing>cf10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_notify_approved" name="Notify Airtel&#10;Loan Approved">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="capbpm.notifyLoanApproved" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf18</bpmn:incoming>
+      <bpmn:outgoing>cf19</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="capbpm_end" name="Loan Disbursed&#10;&#38; Airtel Notified">
+      <bpmn:incoming>cf19</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="task_process_disbursement" name="Process Loan&#10;Disbursement">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="cbs.processLoanDisbursement" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf17</bpmn:incoming>
+      <bpmn:outgoing>cf18</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="gw_merge_cbs">
+      <bpmn:incoming>cf16</bpmn:incoming>
+      <bpmn:incoming>cf15_yes</bpmn:incoming>
+      <bpmn:outgoing>cf17</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_onboard_cbs" name="Onboard Customer&#10;in CBS">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="cbs.onboardCustomer" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf15_no</bpmn:incoming>
+      <bpmn:outgoing>cf16</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="gw_customer_in_cbs" name="Customer&#10;in CBS?">
+      <bpmn:incoming>cf14</bpmn:incoming>
+      <bpmn:outgoing>cf15_no</bpmn:outgoing>
+      <bpmn:outgoing>cf15_yes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_check_cbs" name="Check Customer&#10;in CBS">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="cbs.checkCustomer" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf13</bpmn:incoming>
+      <bpmn:outgoing>cf14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_send_submission_conf" name="Send Submission&#10;Confirmation">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="capbpm.sendSubmissionConfirmation" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf12</bpmn:incoming>
+      <bpmn:outgoing>cf13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_store_loan" name="Store Loan&#10;Information">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="capbpm.storeLoanInfo" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>cf11_yes</bpmn:incoming>
+      <bpmn:outgoing>cf12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="catch_loan_application" name="Receive Loan&#10;Application">
+      <bpmn:incoming>cf11_yes</bpmn:incoming>
+      <bpmn:outgoing>cf11b</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="med_catch_loan_app" messageRef="Message_LoanApplication" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="gw_eligible" name="Customer&#10;Eligible?">
+      <bpmn:incoming>cf10</bpmn:incoming>
+      <bpmn:outgoing>cf11_yes</bpmn:outgoing>
+      <bpmn:outgoing>cf11_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="end_not_eligible" name="Loan Not&#10;Eligible">
+      <bpmn:incoming>cf11_no</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:process id="Process_GNU" name="GnuCreditScore" isExecutable="false">
+    <bpmn:sequenceFlow id="gf1" sourceRef="gnu_start" targetRef="gnu_task_calculate" />
+    <bpmn:sequenceFlow id="gf2" sourceRef="gnu_task_calculate" targetRef="gnu_end" />
+    <bpmn:startEvent id="gnu_start" name="Receive Credit&#10;Score Request">
+      <bpmn:outgoing>gf1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="med_gnu_start" />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="gnu_task_calculate" name="Calculate&#10;Credit Score">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="gnu.getCreditScore" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>gf1</bpmn:incoming>
+      <bpmn:outgoing>gf2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="gnu_end" name="Return Credit&#10;Score Response">
+      <bpmn:incoming>gf2</bpmn:incoming>
+      <bpmn:messageEventDefinition id="med_gnu_end" />
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:process id="Process_CBS" name="CBS (Core Banking)" isExecutable="false">
+    <bpmn:startEvent id="cbs_start" name="Receive Check&#10;Customer Request">
+      <bpmn:outgoing>bf1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="med_cbs_start" />
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="bf1" sourceRef="cbs_start" targetRef="cbs_task_check" />
+    <bpmn:sequenceFlow id="bf2" sourceRef="cbs_task_check" targetRef="cbs_gw_exists" />
+    <bpmn:sequenceFlow id="bf3_no" name="Not in CBS" sourceRef="cbs_gw_exists" targetRef="cbs_task_onboard" />
+    <bpmn:sequenceFlow id="bf3_yes" name="In CBS" sourceRef="cbs_gw_exists" targetRef="cbs_gw_merge" />
+    <bpmn:sequenceFlow id="bf4" sourceRef="cbs_task_onboard" targetRef="cbs_gw_merge" />
+    <bpmn:sequenceFlow id="bf5" sourceRef="cbs_gw_merge" targetRef="cbs_task_disburse" />
+    <bpmn:sequenceFlow id="bf6" sourceRef="cbs_task_disburse" targetRef="cbs_end" />
+    <bpmn:endEvent id="cbs_end" name="Disbursement&#10;Complete">
+      <bpmn:incoming>bf6</bpmn:incoming>
+      <bpmn:messageEventDefinition id="med_cbs_end" />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="cbs_task_disburse" name="Process Loan&#10;Disbursement">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="cbs.processLoanDisbursement" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>bf5</bpmn:incoming>
+      <bpmn:outgoing>bf6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="cbs_gw_merge">
+      <bpmn:incoming>bf4</bpmn:incoming>
+      <bpmn:incoming>bf3_yes</bpmn:incoming>
+      <bpmn:outgoing>bf5</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="cbs_task_onboard" name="Onboard New&#10;Customer">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="cbs.onboardCustomer" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>bf3_no</bpmn:incoming>
+      <bpmn:outgoing>bf4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="cbs_gw_exists" name="Customer&#10;Exists?">
+      <bpmn:incoming>bf2</bpmn:incoming>
+      <bpmn:outgoing>bf3_no</bpmn:outgoing>
+      <bpmn:outgoing>bf3_yes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="cbs_task_check" name="Check Customer&#10;Profile">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="cbs.checkCustomer" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>bf1</bpmn:incoming>
+      <bpmn:outgoing>bf2</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_AirtelLoan">
+      <bpmndi:BPMNShape id="Participant_Airtel_di" bpmnElement="Participant_Airtel" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="3360" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_end_not_eligible_di" bpmnElement="airtel_end_not_eligible">
+        <dc:Bounds x="1635" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1618" y="275" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_send_kyc_response_di" bpmnElement="airtel_send_kyc_response">
+        <dc:Bounds x="945" y="130" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_task_provide_kyc_di" bpmnElement="airtel_task_provide_kyc">
+        <dc:Bounds x="755" y="130" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_recv_kyc_request_di" bpmnElement="airtel_recv_kyc_request">
+        <dc:Bounds x="652" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="637" y="114.5" width="66" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_send_loan_req_di" bpmnElement="airtel_send_loan_req">
+        <dc:Bounds x="475" y="130" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_task_select_di" bpmnElement="airtel_task_select">
+        <dc:Bounds x="308" y="130" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_start_di" bpmnElement="airtel_start">
+        <dc:Bounds x="222" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="202" y="195" width="76" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_recv_optedin_di" bpmnElement="airtel_recv_optedin">
+        <dc:Bounds x="1185" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1177" y="114.5" width="51" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_recv_eligibility_di" bpmnElement="airtel_recv_eligibility">
+        <dc:Bounds x="1525" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1504" y="114.5" width="78" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_gw_eligible_di" bpmnElement="airtel_gw_eligible" isMarkerVisible="true">
+        <dc:Bounds x="1628" y="145" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1632" y="108" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_send_loan_app_di" bpmnElement="airtel_send_loan_app">
+        <dc:Bounds x="1758" y="130" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_end_approved_di" bpmnElement="airtel_end_approved">
+        <dc:Bounds x="3282" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3263" y="195" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_recv_approval_di" bpmnElement="airtel_recv_approval">
+        <dc:Bounds x="3162" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3146" y="115" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="airtel_recv_submission_conf_di" bpmnElement="airtel_recv_submission_conf">
+        <dc:Bounds x="2149" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2135" y="102" width="63" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="af1_di" bpmnElement="af1">
+        <di:waypoint x="258" y="170" />
+        <di:waypoint x="308" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af2_di" bpmnElement="af2">
+        <di:waypoint x="418" y="170" />
+        <di:waypoint x="475" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af3a_di" bpmnElement="af3a">
+        <di:waypoint x="585" y="170" />
+        <di:waypoint x="652" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af3b_di" bpmnElement="af3b">
+        <di:waypoint x="688" y="170" />
+        <di:waypoint x="755" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af3c_di" bpmnElement="af3c">
+        <di:waypoint x="865" y="170" />
+        <di:waypoint x="945" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af3d_di" bpmnElement="af3d">
+        <di:waypoint x="1055" y="170" />
+        <di:waypoint x="1185" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af4_di" bpmnElement="af4">
+        <di:waypoint x="1221" y="170" />
+        <di:waypoint x="1525" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af5_di" bpmnElement="af5">
+        <di:waypoint x="1561" y="170" />
+        <di:waypoint x="1628" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af6_yes_di" bpmnElement="af6_yes">
+        <di:waypoint x="1678" y="170" />
+        <di:waypoint x="1758" y="170" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1699" y="152" width="37" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af6_no_di" bpmnElement="af6_no">
+        <di:waypoint x="1653" y="195" />
+        <di:waypoint x="1653" y="232" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1659" y="210" width="57" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af7_di" bpmnElement="af7">
+        <di:waypoint x="1868" y="170" />
+        <di:waypoint x="2149" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af8_di" bpmnElement="af8">
+        <di:waypoint x="2185" y="170" />
+        <di:waypoint x="3162" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="af9_di" bpmnElement="af9">
+        <di:waypoint x="3198" y="170" />
+        <di:waypoint x="3282" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_CapBPM_di" bpmnElement="Participant_CapBPM" isHorizontal="true">
+        <dc:Bounds x="160" y="280" width="3360" height="320" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="capbpm_start_di" bpmnElement="capbpm_start">
+        <dc:Bounds x="222" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="198" y="465" width="84" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_check_customer_di" bpmnElement="task_check_customer">
+        <dc:Bounds x="308" y="400" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_customer_exists_di" bpmnElement="gw_customer_exists" isMarkerVisible="true">
+        <dc:Bounds x="468" y="415" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="449" y="378" width="88" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_fetch_kyc_di" bpmnElement="task_fetch_kyc">
+        <dc:Bounds x="558" y="490" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_merge_optin_di" bpmnElement="gw_merge_optin" isMarkerVisible="true">
+        <dc:Bounds x="1048" y="415" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_notify_optedin_di" bpmnElement="task_notify_optedin">
+        <dc:Bounds x="1148" y="400" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_optin_customer_di" bpmnElement="task_optin_customer">
+        <dc:Bounds x="925" y="490" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_store_kyc_di" bpmnElement="task_store_kyc">
+        <dc:Bounds x="785" y="490" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="catch_kyc_response_di" bpmnElement="catch_kyc_response">
+        <dc:Bounds x="702" y="512" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="687" y="555" width="66" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_get_credit_score_di" bpmnElement="task_get_credit_score">
+        <dc:Bounds x="1305" y="400" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_send_eligibility_di" bpmnElement="task_send_eligibility">
+        <dc:Bounds x="1465" y="400" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_notify_approved_di" bpmnElement="task_notify_approved">
+        <dc:Bounds x="3115" y="400" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="capbpm_end_di" bpmnElement="capbpm_end">
+        <dc:Bounds x="3312" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3291" y="465" width="78" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_process_disbursement_di" bpmnElement="task_process_disbursement">
+        <dc:Bounds x="2915" y="400" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_merge_cbs_di" bpmnElement="gw_merge_cbs" isMarkerVisible="true">
+        <dc:Bounds x="2775" y="415" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_onboard_cbs_di" bpmnElement="task_onboard_cbs">
+        <dc:Bounds x="2615" y="480" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_customer_in_cbs_di" bpmnElement="gw_customer_in_cbs" isMarkerVisible="true">
+        <dc:Bounds x="2525" y="415" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2526" y="378" width="49" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_check_cbs_di" bpmnElement="task_check_cbs">
+        <dc:Bounds x="2315" y="400" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_send_submission_conf_di" bpmnElement="task_send_submission_conf">
+        <dc:Bounds x="2105" y="400" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_store_loan_di" bpmnElement="task_store_loan">
+        <dc:Bounds x="1945" y="400" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="catch_loan_application_di" bpmnElement="catch_loan_application">
+        <dc:Bounds x="1795" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1779" y="465" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_eligible_di" bpmnElement="gw_eligible" isMarkerVisible="true">
+        <dc:Bounds x="1655" y="415" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1656" y="378" width="49" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_not_eligible_di" bpmnElement="end_not_eligible">
+        <dc:Bounds x="1662" y="512" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1658" y="555" width="45" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="cf1_di" bpmnElement="cf1">
+        <di:waypoint x="258" y="440" />
+        <di:waypoint x="308" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf2_di" bpmnElement="cf2">
+        <di:waypoint x="418" y="440" />
+        <di:waypoint x="468" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf3_yes_di" bpmnElement="cf3_yes">
+        <di:waypoint x="518" y="440" />
+        <di:waypoint x="1048" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="720" y="422" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf3_no_di" bpmnElement="cf3_no">
+        <di:waypoint x="493" y="465" />
+        <di:waypoint x="493" y="530" />
+        <di:waypoint x="558" y="530" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="498" y="490" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf4a_di" bpmnElement="cf4a">
+        <di:waypoint x="668" y="530" />
+        <di:waypoint x="702" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf4b_di" bpmnElement="cf4b">
+        <di:waypoint x="738" y="530" />
+        <di:waypoint x="785" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf5_di" bpmnElement="cf5">
+        <di:waypoint x="895" y="530" />
+        <di:waypoint x="925" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf6_di" bpmnElement="cf6">
+        <di:waypoint x="1035" y="530" />
+        <di:waypoint x="1073" y="530" />
+        <di:waypoint x="1073" y="465" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf7_di" bpmnElement="cf7">
+        <di:waypoint x="1098" y="440" />
+        <di:waypoint x="1148" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf8_di" bpmnElement="cf8">
+        <di:waypoint x="1258" y="440" />
+        <di:waypoint x="1305" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf9_di" bpmnElement="cf9">
+        <di:waypoint x="1415" y="440" />
+        <di:waypoint x="1465" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf10_di" bpmnElement="cf10">
+        <di:waypoint x="1575" y="440" />
+        <di:waypoint x="1655" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf11_yes_di" bpmnElement="cf11_yes">
+        <di:waypoint x="1705" y="440" />
+        <di:waypoint x="1795" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1824" y="413" width="37" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf11b_di" bpmnElement="cf11b">
+        <di:waypoint x="1831" y="440" />
+        <di:waypoint x="1945" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf11_no_di" bpmnElement="cf11_no">
+        <di:waypoint x="1680" y="465" />
+        <di:waypoint x="1680" y="512" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1686" y="483" width="57" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf12_di" bpmnElement="cf12">
+        <di:waypoint x="2055" y="440" />
+        <di:waypoint x="2105" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf13_di" bpmnElement="cf13">
+        <di:waypoint x="2215" y="440" />
+        <di:waypoint x="2315" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf14_di" bpmnElement="cf14">
+        <di:waypoint x="2425" y="440" />
+        <di:waypoint x="2525" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf15_no_di" bpmnElement="cf15_no">
+        <di:waypoint x="2550" y="465" />
+        <di:waypoint x="2550" y="520" />
+        <di:waypoint x="2615" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2545" y="482" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf15_yes_di" bpmnElement="cf15_yes">
+        <di:waypoint x="2575" y="440" />
+        <di:waypoint x="2775" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2640" y="422" width="35" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf16_di" bpmnElement="cf16">
+        <di:waypoint x="2725" y="520" />
+        <di:waypoint x="2800" y="520" />
+        <di:waypoint x="2800" y="465" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf17_di" bpmnElement="cf17">
+        <di:waypoint x="2825" y="440" />
+        <di:waypoint x="2915" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf18_di" bpmnElement="cf18">
+        <di:waypoint x="3025" y="440" />
+        <di:waypoint x="3115" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="cf19_di" bpmnElement="cf19">
+        <di:waypoint x="3225" y="440" />
+        <di:waypoint x="3312" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_GNU_di" bpmnElement="Participant_GNU" isHorizontal="true">
+        <dc:Bounds x="160" y="600" width="3360" height="180" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gnu_start_di" bpmnElement="gnu_start">
+        <dc:Bounds x="1212" y="672" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1193" y="715" width="74" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gnu_task_calculate_di" bpmnElement="gnu_task_calculate">
+        <dc:Bounds x="1335" y="650" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gnu_end_di" bpmnElement="gnu_end">
+        <dc:Bounds x="1512" y="672" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1489" y="715" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="gf1_di" bpmnElement="gf1">
+        <di:waypoint x="1248" y="690" />
+        <di:waypoint x="1335" y="690" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="gf2_di" bpmnElement="gf2">
+        <di:waypoint x="1445" y="690" />
+        <di:waypoint x="1512" y="690" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_CBS_di" bpmnElement="Participant_CBS" isHorizontal="true">
+        <dc:Bounds x="160" y="780" width="3360" height="260" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="cbs_start_di" bpmnElement="cbs_start">
+        <dc:Bounds x="2135" y="892" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2108" y="935" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="cbs_end_di" bpmnElement="cbs_end">
+        <dc:Bounds x="3202" y="892" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3186" y="935" width="69" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="cbs_task_disburse_di" bpmnElement="cbs_task_disburse">
+        <dc:Bounds x="2895" y="870" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="cbs_gw_merge_di" bpmnElement="cbs_gw_merge" isMarkerVisible="true">
+        <dc:Bounds x="2795" y="885" width="50" height="50" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="cbs_task_onboard_di" bpmnElement="cbs_task_onboard">
+        <dc:Bounds x="2615" y="950" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="cbs_gw_exists_di" bpmnElement="cbs_gw_exists" isMarkerVisible="true">
+        <dc:Bounds x="2505" y="885" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2506" y="848" width="49" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="cbs_task_check_di" bpmnElement="cbs_task_check">
+        <dc:Bounds x="2315" y="870" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="bf1_di" bpmnElement="bf1">
+        <di:waypoint x="2171" y="910" />
+        <di:waypoint x="2315" y="910" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bf2_di" bpmnElement="bf2">
+        <di:waypoint x="2425" y="910" />
+        <di:waypoint x="2505" y="910" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bf3_no_di" bpmnElement="bf3_no">
+        <di:waypoint x="2530" y="935" />
+        <di:waypoint x="2530" y="990" />
+        <di:waypoint x="2615" y="990" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2545" y="952" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bf3_yes_di" bpmnElement="bf3_yes">
+        <di:waypoint x="2555" y="910" />
+        <di:waypoint x="2795" y="910" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2636" y="892" width="35" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bf4_di" bpmnElement="bf4">
+        <di:waypoint x="2725" y="990" />
+        <di:waypoint x="2820" y="990" />
+        <di:waypoint x="2820" y="935" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bf5_di" bpmnElement="bf5">
+        <di:waypoint x="2845" y="910" />
+        <di:waypoint x="2895" y="910" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bf6_di" bpmnElement="bf6">
+        <di:waypoint x="3005" y="910" />
+        <di:waypoint x="3202" y="910" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_loan_request_di" bpmnElement="mf_loan_request">
+        <di:waypoint x="530" y="210" />
+        <di:waypoint x="530" y="310" />
+        <di:waypoint x="240" y="310" />
+        <di:waypoint x="240" y="422" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="353" y="292" width="69" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_kyc_request_di" bpmnElement="mf_kyc_request">
+        <di:waypoint x="613" y="490" />
+        <di:waypoint x="613" y="339" />
+        <di:waypoint x="670" y="339" />
+        <di:waypoint x="670" y="188" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="674" y="254" width="67" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_kyc_response_di" bpmnElement="mf_kyc_response">
+        <di:waypoint x="1000" y="210" />
+        <di:waypoint x="1000" y="310" />
+        <di:waypoint x="720" y="310" />
+        <di:waypoint x="720" y="512" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="825" y="332" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_optedin_di" bpmnElement="mf_optedin">
+        <di:waypoint x="1203" y="400" />
+        <di:waypoint x="1203" y="188" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1226" y="287" width="55" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_credit_request_di" bpmnElement="mf_credit_request">
+        <di:waypoint x="1320" y="480" />
+        <di:waypoint x="1320" y="576" />
+        <di:waypoint x="1230" y="576" />
+        <di:waypoint x="1230" y="672" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1249" y="613" width="62" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_credit_response_di" bpmnElement="mf_credit_response">
+        <di:waypoint x="1530" y="672" />
+        <di:waypoint x="1530" y="550" />
+        <di:waypoint x="1390" y="550" />
+        <di:waypoint x="1390" y="480" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1419" y="516" width="62" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_eligibility_di" bpmnElement="mf_eligibility">
+        <di:waypoint x="1543" y="400" />
+        <di:waypoint x="1543" y="188" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1553" y="287" width="78" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_loan_application_di" bpmnElement="mf_loan_application">
+        <di:waypoint x="1813" y="210" />
+        <di:waypoint x="1813" y="422" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1783" y="267" width="81" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_submission_conf_di" bpmnElement="mf_submission_conf">
+        <di:waypoint x="2167" y="400" />
+        <di:waypoint x="2167" y="188" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2186" y="288" width="63" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_cbs_check_di" bpmnElement="mf_cbs_check">
+        <di:waypoint x="2340" y="480" />
+        <di:waypoint x="2340" y="600" />
+        <di:waypoint x="2153" y="780" />
+        <di:waypoint x="2153" y="892" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2200" y="630" width="83" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_cbs_response_di" bpmnElement="mf_cbs_response">
+        <di:waypoint x="2370" y="870" />
+        <di:waypoint x="2370" y="480" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2329" y="624" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_cbs_onboard_di" bpmnElement="mf_cbs_onboard">
+        <di:waypoint x="2670" y="560" />
+        <di:waypoint x="2670" y="950" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2671" y="808" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_cbs_disburse_di" bpmnElement="mf_cbs_disburse">
+        <di:waypoint x="2970" y="480" />
+        <di:waypoint x="2970" y="870" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2986" y="770" width="69" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="mf_loan_approved_di" bpmnElement="mf_loan_approved">
+        <di:waypoint x="3180" y="400" />
+        <di:waypoint x="3180" y="188" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3183" y="287" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

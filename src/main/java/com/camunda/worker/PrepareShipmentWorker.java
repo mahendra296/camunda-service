@@ -28,7 +28,11 @@ public class PrepareShipmentWorker {
             @Variable String reservationId) {
 
         try {
-            log.info("[PrepareShipment] orderId={} address={}, variable: {}", orderId, shippingAddress, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[PrepareShipment] orderId={} address={}, variable: {}",
+                    orderId,
+                    shippingAddress,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
@@ -39,14 +43,22 @@ public class PrepareShipmentWorker {
             String warehouseId = "WH-CENTRAL-01";
 
             // TODO: call warehouse management system
-            log.info("[PrepareShipment] orderId={} trackingNumber={} warehouse={}", orderId, trackingNumber, warehouseId);
+            log.info(
+                    "[PrepareShipment] orderId={} trackingNumber={} warehouse={}",
+                    orderId,
+                    trackingNumber,
+                    warehouseId);
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "trackingNumber", trackingNumber,
-                            "warehouseId", warehouseId,
-                            "shipmentPreparedAt", System.currentTimeMillis(),
-                            "estimatedDelivery", System.currentTimeMillis() + 3 * 24 * 60 * 60 * 1000L))
+                            "trackingNumber",
+                            trackingNumber,
+                            "warehouseId",
+                            warehouseId,
+                            "shipmentPreparedAt",
+                            System.currentTimeMillis(),
+                            "estimatedDelivery",
+                            System.currentTimeMillis() + 3 * 24 * 60 * 60 * 1000L))
                     .send()
                     .join();
 

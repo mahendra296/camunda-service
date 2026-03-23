@@ -47,13 +47,18 @@ public class GenerateShippingLabelWorker {
         try {
             // TODO: call carrier label generation API (e.g. EasyPost, ShipStation)
             // Tracking number includes productId to ensure uniqueness per product shipment
-            String trackingNumber = carrierCode + "-" + productId.substring(Math.max(0, productId.length() - 6)).toUpperCase()
-                    + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-            String labelId = "LBL-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            String trackingNumber = carrierCode + "-"
+                    + productId.substring(Math.max(0, productId.length() - 6)).toUpperCase() + "-"
+                    + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            String labelId =
+                    "LBL-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
             String labelUrl = "https://labels.shipments.example.com/" + labelId + ".pdf";
             long estimatedDeliveryMs = System.currentTimeMillis()
                     + ("EXPRESS".equals(serviceLevel) ? 1 : "ECONOMY".equals(serviceLevel) ? 5 : 3)
-                            * 24L * 60 * 60 * 1000;
+                            * 24L
+                            * 60
+                            * 60
+                            * 1000;
 
             log.info(
                     "[GenerateLabel] Label generated. orderId={} productId={} tracking={} labelId={}",

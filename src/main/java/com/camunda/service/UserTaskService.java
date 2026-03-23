@@ -21,9 +21,7 @@ public class UserTaskService {
         log.info("[UserTaskService] Completing shipment approval taskKey={} approved={}", taskKey, approved);
         jobClient
                 .newCompleteCommand(taskKey)
-                .variables(Map.of(
-                        "shipmentApproved", approved,
-                        "shipmentApprovalNote", note != null ? note : ""))
+                .variables(Map.of("shipmentApproved", approved, "shipmentApprovalNote", note != null ? note : ""))
                 .send()
                 .join();
     }
@@ -36,9 +34,7 @@ public class UserTaskService {
         log.info("[UserTaskService] Completing cancellation approval taskKey={} approved={}", taskKey, approved);
         jobClient
                 .newCompleteCommand(taskKey)
-                .variables(Map.of(
-                        "cancellationApproved", approved,
-                        "cancellationReason", reason != null ? reason : ""))
+                .variables(Map.of("cancellationApproved", approved, "cancellationReason", reason != null ? reason : ""))
                 .send()
                 .join();
     }
@@ -63,15 +59,22 @@ public class UserTaskService {
      * Captures refund amount, method, and a note before ProcessRefundWorker runs.
      */
     public void completeRefundInitiation(long taskKey, double refundAmount, String refundMethod, String note) {
-        log.info("[UserTaskService] Completing refund initiation taskKey={} amount={} method={}",
-                taskKey, refundAmount, refundMethod);
+        log.info(
+                "[UserTaskService] Completing refund initiation taskKey={} amount={} method={}",
+                taskKey,
+                refundAmount,
+                refundMethod);
         jobClient
                 .newCompleteCommand(taskKey)
                 .variables(Map.of(
-                        "refundAmount", refundAmount,
-                        "refundMethod", refundMethod != null ? refundMethod : "ORIGINAL_PAYMENT",
-                        "refundNote", note != null ? note : "",
-                        "refundInitiatedAt", System.currentTimeMillis()))
+                        "refundAmount",
+                        refundAmount,
+                        "refundMethod",
+                        refundMethod != null ? refundMethod : "ORIGINAL_PAYMENT",
+                        "refundNote",
+                        note != null ? note : "",
+                        "refundInitiatedAt",
+                        System.currentTimeMillis()))
                 .send()
                 .join();
     }

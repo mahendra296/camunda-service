@@ -7,7 +7,6 @@ import io.camunda.client.annotation.Variable;
 import io.camunda.client.api.response.ActivatedJob;
 import io.camunda.client.api.worker.JobClient;
 import java.util.Map;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -28,7 +27,11 @@ public class SendRejectionWorker {
             @Variable String validationError) {
 
         try {
-            log.warn("[SendRejection] orderId={} reason={}, variable: {}", orderId, validationError, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.warn(
+                    "[SendRejection] orderId={} reason={}, variable: {}",
+                    orderId,
+                    validationError,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
@@ -39,8 +42,10 @@ public class SendRejectionWorker {
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "rejectionSentAt", System.currentTimeMillis(),
-                            "rejectionReason", validationError != null ? validationError : "Order validation failed"))
+                            "rejectionSentAt",
+                            System.currentTimeMillis(),
+                            "rejectionReason",
+                            validationError != null ? validationError : "Order validation failed"))
                     .send()
                     .join();
 

@@ -29,13 +29,19 @@ public class ProcessRefundWorker {
             @Variable String customerEmail) {
 
         try {
-            log.info("[ProcessRefund] orderId={} txn={} amount={}, variable: {}", orderId, transactionId, totalAmount, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[ProcessRefund] orderId={} txn={} amount={}, variable: {}",
+                    orderId,
+                    transactionId,
+                    totalAmount,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
 
         try {
-            String refundId = "REF-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase();
+            String refundId =
+                    "REF-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase();
 
             // TODO: call payment gateway refund API
             log.info("[ProcessRefund] Refund issued refundId={} for orderId={}", refundId, orderId);

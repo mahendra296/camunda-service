@@ -22,13 +22,13 @@ public class ReserveInventoryWorker {
 
     @JobWorker(type = "order.reserve-inventory", autoComplete = false)
     public void reserveInventory(
-            JobClient client,
-            ActivatedJob job,
-            @Variable String orderId,
-            @Variable List<Map<String, Object>> items) {
+            JobClient client, ActivatedJob job, @Variable String orderId, @Variable List<Map<String, Object>> items) {
 
         try {
-            log.info("[ReserveInventory] orderId={}, variable: {}", orderId, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[ReserveInventory] orderId={}, variable: {}",
+                    orderId,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
@@ -38,13 +38,19 @@ public class ReserveInventoryWorker {
                     "RES-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
             // TODO: call inventory service to reserve stock
-            log.info("[ReserveInventory] Reserved inventory with reservationId={} for orderId={}", reservationId, orderId);
+            log.info(
+                    "[ReserveInventory] Reserved inventory with reservationId={} for orderId={}",
+                    reservationId,
+                    orderId);
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "reservationId", reservationId,
-                            "reservedAt", System.currentTimeMillis(),
-                            "reservedItemCount", items != null ? items.size() : 0))
+                            "reservationId",
+                            reservationId,
+                            "reservedAt",
+                            System.currentTimeMillis(),
+                            "reservedItemCount",
+                            items != null ? items.size() : 0))
                     .send()
                     .join();
 

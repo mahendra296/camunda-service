@@ -27,20 +27,28 @@ public class SendDeliveryConfirmationWorker {
             @Variable String trackingNumber) {
 
         try {
-            log.info("[SendDeliveryConfirmation] orderId={} email={}, variable: {}", orderId, customerEmail, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[SendDeliveryConfirmation] orderId={} email={}, variable: {}",
+                    orderId,
+                    customerEmail,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
 
         try {
             // TODO: send delivery confirmation email with review request
-            log.info("[SendDeliveryConfirmation] Delivery confirmation sent to {} for order {}", customerEmail, orderId);
+            log.info(
+                    "[SendDeliveryConfirmation] Delivery confirmation sent to {} for order {}", customerEmail, orderId);
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "deliveryConfirmedAt", System.currentTimeMillis(),
-                            "orderStatus", "DELIVERED",
-                            "reviewRequestSent", true))
+                            "deliveryConfirmedAt",
+                            System.currentTimeMillis(),
+                            "orderStatus",
+                            "DELIVERED",
+                            "reviewRequestSent",
+                            true))
                     .send()
                     .join();
 

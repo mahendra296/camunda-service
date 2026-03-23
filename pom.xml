@@ -35,6 +35,12 @@
 			<groupId>com.docusign</groupId>
 			<artifactId>docusign-esign-java</artifactId>
 			<version>6.2.0</version>
+			<exclusions>
+				<exclusion>
+					<groupId>jakarta.xml.bind</groupId>
+					<artifactId>jakarta.xml.bind-api</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<!-- Jersey multipart required by DocuSign SDK at runtime -->

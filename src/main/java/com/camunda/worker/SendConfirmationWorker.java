@@ -29,7 +29,11 @@ public class SendConfirmationWorker {
             @Variable String transactionId) {
 
         try {
-            log.info("[SendConfirmation] orderId={} email={}, variable: {}", orderId, customerEmail, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[SendConfirmation] orderId={} email={}, variable: {}",
+                    orderId,
+                    customerEmail,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
@@ -44,8 +48,7 @@ public class SendConfirmationWorker {
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "confirmationSentAt", System.currentTimeMillis(),
-                            "confirmationEmail", customerEmail))
+                            "confirmationSentAt", System.currentTimeMillis(), "confirmationEmail", customerEmail))
                     .send()
                     .join();
 

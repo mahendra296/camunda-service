@@ -28,19 +28,22 @@ public class NotifyBackorderWorker {
             @Variable List<String> outOfStockItems) {
 
         try {
-            log.info("[NotifyBackorder] orderId={} outOfStock={}, variable: {}", orderId, outOfStockItems, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[NotifyBackorder] orderId={} outOfStock={}, variable: {}",
+                    orderId,
+                    outOfStockItems,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
 
         try {
             // TODO: send backorder notification email
-            log.info("[NotifyBackorder] Backorder notification sent to {} for items {}", customerEmail, outOfStockItems);
+            log.info(
+                    "[NotifyBackorder] Backorder notification sent to {} for items {}", customerEmail, outOfStockItems);
 
             client.newCompleteCommand(job.getKey())
-                    .variables(Map.of(
-                            "backorderNotifiedAt", System.currentTimeMillis(),
-                            "backorderAttempt", 1))
+                    .variables(Map.of("backorderNotifiedAt", System.currentTimeMillis(), "backorderAttempt", 1))
                     .send()
                     .join();
 

@@ -33,8 +33,7 @@ public class GlobalExceptionHandler {
 
     // ─── 400 – @Validated path/query param constraint violations ─────────────
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleConstraint(
-            ConstraintViolationException ex, WebRequest request) {
+    public ResponseEntity<Map<String, Object>> handleConstraint(ConstraintViolationException ex, WebRequest request) {
 
         List<String> errors = ex.getConstraintViolations().stream()
                 .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
@@ -46,11 +45,12 @@ public class GlobalExceptionHandler {
 
     // ─── 503 – Zeebe / Camunda gRPC communication failure ────────────────────
     @ExceptionHandler(ClientStatusException.class)
-    public ResponseEntity<Map<String, Object>> handlecamundaClient(
-            ClientStatusException ex, WebRequest request) {
+    public ResponseEntity<Map<String, Object>> handlecamundaClient(ClientStatusException ex, WebRequest request) {
 
-        log.error("[GlobalExceptionHandler] Zeebe client error: status={} message={}",
-                ex.getStatusCode(), ex.getMessage());
+        log.error(
+                "[GlobalExceptionHandler] Zeebe client error: status={} message={}",
+                ex.getStatusCode(),
+                ex.getMessage());
         return build(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "Camunda / Zeebe is unavailable: " + ex.getMessage(),
@@ -60,8 +60,7 @@ public class GlobalExceptionHandler {
 
     // ─── 404 – Process instance / resource not found ──────────────────────────
     @ExceptionHandler(OrderNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleOrderNotFound(
-            OrderNotFoundException ex, WebRequest request) {
+    public ResponseEntity<Map<String, Object>> handleOrderNotFound(OrderNotFoundException ex, WebRequest request) {
 
         log.warn("[GlobalExceptionHandler] Order not found: {}", ex.getMessage());
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), List.of(), request);
@@ -69,8 +68,7 @@ public class GlobalExceptionHandler {
 
     // ─── 409 – Duplicate / conflicting order state ────────────────────────────
     @ExceptionHandler(OrderConflictException.class)
-    public ResponseEntity<Map<String, Object>> handleOrderConflict(
-            OrderConflictException ex, WebRequest request) {
+    public ResponseEntity<Map<String, Object>> handleOrderConflict(OrderConflictException ex, WebRequest request) {
 
         log.warn("[GlobalExceptionHandler] Order conflict: {}", ex.getMessage());
         return build(HttpStatus.CONFLICT, ex.getMessage(), List.of(), request);
@@ -78,8 +76,7 @@ public class GlobalExceptionHandler {
 
     // ─── 500 – Any other unhandled runtime exception ──────────────────────────
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneric(
-            Exception ex, WebRequest request) {
+    public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex, WebRequest request) {
 
         log.error("[GlobalExceptionHandler] Unhandled exception: {}", ex.getMessage(), ex);
         return build(
@@ -95,10 +92,10 @@ public class GlobalExceptionHandler {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", Instant.now().toString());
-        body.put("status",    status.value());
-        body.put("error",     status.getReasonPhrase());
-        body.put("message",   message);
-        body.put("path",      request.getDescription(false).replace("uri=", ""));
+        body.put("status", status.value());
+        body.put("error", status.getReasonPhrase());
+        body.put("message", message);
+        body.put("path", request.getDescription(false).replace("uri=", ""));
         if (!errors.isEmpty()) {
             body.put("errors", errors);
         }

@@ -65,9 +65,12 @@ public class OrderProcessController {
         log.info("[API] POST /api/orders/{}/shipment-ready", orderId);
         orderProcessService.sendShipmentReadyMessage(orderId);
         return ResponseEntity.ok(Map.of(
-                "status", "SHIPMENT_READY_SENT",
-                "orderId", orderId,
-                "message", "Shipment Process subprocess triggered for order " + orderId));
+                "status",
+                "SHIPMENT_READY_SENT",
+                "orderId",
+                orderId,
+                "message",
+                "Shipment Process subprocess triggered for order " + orderId));
     }
 
     /**
@@ -88,9 +91,8 @@ public class OrderProcessController {
 
         log.info("[API] POST /api/orders/{}/products/{}/shipment-ready", orderId, productId);
 
-        Map<String, Object> variables = request != null && request.getVariables() != null
-                ? request.getVariables()
-                : new HashMap<>();
+        Map<String, Object> variables =
+                request != null && request.getVariables() != null ? request.getVariables() : new HashMap<>();
 
         String note = (String) variables.getOrDefault("note", "");
         String warehouseId = (String) variables.getOrDefault("warehouseId", "");
@@ -118,9 +120,7 @@ public class OrderProcessController {
     public ResponseEntity<Map<String, String>> notifyShipmentApproval(@PathVariable String orderId) {
         log.info("[API] POST /api/orders/{}/shipment-approval/notify", orderId);
         orderProcessService.sendShipmentApprovalNotification(orderId);
-        return ResponseEntity.ok(Map.of(
-                "status", "SHIPMENT_APPROVAL_NOTIFICATION_SENT",
-                "orderId", orderId));
+        return ResponseEntity.ok(Map.of("status", "SHIPMENT_APPROVAL_NOTIFICATION_SENT", "orderId", orderId));
     }
 
     /**
@@ -164,16 +164,18 @@ public class OrderProcessController {
      */
     @PostMapping("/{orderId}/shipments/{trackingNumber}/status")
     public ResponseEntity<Map<String, Object>> updateShipmentStatus(
-            @PathVariable String orderId,
-            @PathVariable String trackingNumber,
-            @RequestBody Map<String, String> body) {
+            @PathVariable String orderId, @PathVariable String trackingNumber, @RequestBody Map<String, String> body) {
 
         String status = body.getOrDefault("status", "UNKNOWN");
         String location = body.getOrDefault("location", "");
         String note = body.getOrDefault("note", "");
 
-        log.info("[API] POST /api/orders/{}/shipments/{}/status status={} location={}",
-                orderId, trackingNumber, status, location);
+        log.info(
+                "[API] POST /api/orders/{}/shipments/{}/status status={} location={}",
+                orderId,
+                trackingNumber,
+                status,
+                location);
 
         orderProcessService.updateShipmentStatus(orderId, trackingNumber, status, location, note);
 
@@ -205,8 +207,11 @@ public class OrderProcessController {
         log.info("[API] POST /api/orders/{}/delivery-confirmation success={}", orderId, success);
         orderProcessService.sendDeliveryConfirmationMessage(orderId, success, note);
         return ResponseEntity.ok(Map.of(
-                "status", "DELIVERY_CONFIRMATION_SENT",
-                "orderId", orderId,
-                "deliverySuccess", String.valueOf(success)));
+                "status",
+                "DELIVERY_CONFIRMATION_SENT",
+                "orderId",
+                orderId,
+                "deliverySuccess",
+                String.valueOf(success)));
     }
 }

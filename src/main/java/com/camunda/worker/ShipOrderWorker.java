@@ -28,7 +28,12 @@ public class ShipOrderWorker {
             @Variable String shippingAddress) {
 
         try {
-            log.info("[ShipOrder] orderId={} tracking={} from={}, variable: {}", orderId, trackingNumber, warehouseId, objectMapper.writeValueAsString(job.getVariablesAsMap()));
+            log.info(
+                    "[ShipOrder] orderId={} tracking={} from={}, variable: {}",
+                    orderId,
+                    trackingNumber,
+                    warehouseId,
+                    objectMapper.writeValueAsString(job.getVariablesAsMap()));
         } catch (JsonProcessingException e) {
             log.error("Error while print the message");
         }
@@ -36,14 +41,21 @@ public class ShipOrderWorker {
         try {
             // TODO: call courier/logistics API to dispatch
             log.info(
-                    "[ShipOrder] Order dispatched. orderId={} tracking={} to={}", orderId, trackingNumber, shippingAddress);
+                    "[ShipOrder] Order dispatched. orderId={} tracking={} to={}",
+                    orderId,
+                    trackingNumber,
+                    shippingAddress);
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "shippedAt", System.currentTimeMillis(),
-                            "carrierName", "FastShip Express",
-                            "shipmentStatus", "DISPATCHED",
-                            "trackingUrl", "https://track.fastship.example.com/" + trackingNumber))
+                            "shippedAt",
+                            System.currentTimeMillis(),
+                            "carrierName",
+                            "FastShip Express",
+                            "shipmentStatus",
+                            "DISPATCHED",
+                            "trackingUrl",
+                            "https://track.fastship.example.com/" + trackingNumber))
                     .send()
                     .join();
 

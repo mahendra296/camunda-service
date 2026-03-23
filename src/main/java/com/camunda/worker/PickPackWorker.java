@@ -44,8 +44,9 @@ public class PickPackWorker {
 
         try {
             // TODO: call warehouse management system to trigger pick-pack workflow for the specific product
-            String packageId = "PKG-" + productId.substring(Math.max(0, productId.length() - 6)).toUpperCase()
-                    + "-" + System.currentTimeMillis() % 10000;
+            String packageId = "PKG-"
+                    + productId.substring(Math.max(0, productId.length() - 6)).toUpperCase() + "-"
+                    + System.currentTimeMillis() % 10000;
 
             log.info(
                     "[PickPack] Product picked and packed. orderId={} productId={} packageId={} qty={}",
@@ -56,11 +57,16 @@ public class PickPackWorker {
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "packageId", packageId,
-                            "itemCount", 1,
-                            "totalQuantity", quantity,
-                            "packageStatus", "PACKED",
-                            "packedAt", System.currentTimeMillis()))
+                            "packageId",
+                            packageId,
+                            "itemCount",
+                            1,
+                            "totalQuantity",
+                            quantity,
+                            "packageStatus",
+                            "PACKED",
+                            "packedAt",
+                            System.currentTimeMillis()))
                     .send()
                     .join();
 
