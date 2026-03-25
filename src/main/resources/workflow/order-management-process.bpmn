@@ -166,8 +166,9 @@
     </bpmn:intermediateCatchEvent>
     <bpmn:userTask id="task_approve_cancellation" name="Approve&#10;Cancellation">
       <bpmn:extensionElements>
-        <zeebe:assignmentDefinition assignee="support-agent" />
-        <zeebe:formDefinition formKey="cancellation-approval-form" />
+        <zeebe:assignmentDefinition assignee="demo" />
+        <zeebe:formDefinition externalReference="cancellation-approval-form" />
+        <zeebe:userTask />
       </bpmn:extensionElements>
       <bpmn:incoming>flow_cancel_to_approve</bpmn:incoming>
       <bpmn:outgoing>flow_approve_to_process_cancel</bpmn:outgoing>
@@ -488,6 +489,12 @@
           <dc:Bounds x="1762" y="145" width="76" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_catch_sla" bpmnElement="catch_sla_breach">
+        <dc:Bounds x="1782" y="522" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1770" y="484.5" width="59" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_catch_shipment_ready" bpmnElement="catch_shipment_ready">
         <dc:Bounds x="1782" y="262" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -508,12 +515,6 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_handle_sla" bpmnElement="task_handle_sla_breach">
         <dc:Bounds x="1900" y="500" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_catch_sla" bpmnElement="catch_sla_breach">
-        <dc:Bounds x="1782" y="522" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1770" y="484.5" width="59" height="27" />
-        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_end_sla" bpmnElement="end_sla_notified">
         <dc:Bounds x="2092" y="522" width="36" height="36" />

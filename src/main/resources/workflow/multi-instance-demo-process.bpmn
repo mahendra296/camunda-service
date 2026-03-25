@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_MultiInstanceDemo" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.45.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <bpmn:process id="multi-instance-demo-process" name="Multi-Instance Demo" isExecutable="true">
+    <bpmn:startEvent id="start_event_demo" name="Start&#10;Demo">
+      <bpmn:outgoing>flow_start_to_prepare</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="task_prepare_data" name="Prepare&#10;Demo Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="demo.prepareData" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_start_to_prepare</bpmn:incoming>
+      <bpmn:outgoing>flow_prepare_to_loop</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_process_loop" name="Process with&#10;Loop (iter)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="demo.processLoop" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_prepare_to_loop</bpmn:incoming>
+      <bpmn:incoming>flow_loop_back</bpmn:incoming>
+      <bpmn:outgoing>flow_loop_to_gw</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="gw_loop_done" name="Loop&#10;Done?">
+      <bpmn:incoming>flow_loop_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_loop_back</bpmn:outgoing>
+      <bpmn:outgoing>flow_loop_continue</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="task_process_sequential" name="Process&#10;Sequentially">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="demo.processSequential" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_loop_continue</bpmn:incoming>
+      <bpmn:outgoing>flow_sequential_to_parallel</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics isSequential="true">
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=items" inputElement="currentItem" outputCollection="sequentialResults" outputElement="=sequentialResult" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_process_parallel" name="Process&#10;in Parallel">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="demo.processParallel" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_sequential_to_parallel</bpmn:incoming>
+      <bpmn:outgoing>flow_parallel_to_collect</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=items" inputElement="currentItem" outputCollection="parallelResults" outputElement="=parallelResult" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_collect_results" name="Collect&#10;Results">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="demo.collectResults" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_parallel_to_collect</bpmn:incoming>
+      <bpmn:outgoing>flow_collect_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_demo_complete" name="Demo&#10;Complete">
+      <bpmn:incoming>flow_collect_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_start_to_prepare" sourceRef="start_event_demo" targetRef="task_prepare_data" />
+    <bpmn:sequenceFlow id="flow_prepare_to_loop" sourceRef="task_prepare_data" targetRef="task_process_loop" />
+    <bpmn:sequenceFlow id="flow_loop_to_gw" sourceRef="task_process_loop" targetRef="gw_loop_done" />
+    <bpmn:sequenceFlow id="flow_loop_back" name="Not Done" sourceRef="gw_loop_done" targetRef="task_process_loop">
+      <bpmn:conditionExpression>=loopDone = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_loop_continue" name="Done" sourceRef="gw_loop_done" targetRef="task_process_sequential">
+      <bpmn:conditionExpression>=loopDone = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_sequential_to_parallel" sourceRef="task_process_sequential" targetRef="task_process_parallel" />
+    <bpmn:sequenceFlow id="flow_parallel_to_collect" sourceRef="task_process_parallel" targetRef="task_collect_results" />
+    <bpmn:sequenceFlow id="flow_collect_to_end" sourceRef="task_collect_results" targetRef="end_demo_complete" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="multi-instance-demo-process">
+      <bpmndi:BPMNShape id="start_event_demo_di" bpmnElement="start_event_demo">
+        <dc:Bounds x="160" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="163" y="145" width="30" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_prepare_data_di" bpmnElement="task_prepare_data">
+        <dc:Bounds x="246" y="80" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_process_loop_di" bpmnElement="task_process_loop">
+        <dc:Bounds x="426" y="80" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_loop_done_di" bpmnElement="gw_loop_done" isMarkerVisible="true">
+        <dc:Bounds x="606" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="615" y="152" width="33" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_process_sequential_di" bpmnElement="task_process_sequential">
+        <dc:Bounds x="726" y="80" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_process_parallel_di" bpmnElement="task_process_parallel">
+        <dc:Bounds x="906" y="80" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_collect_results_di" bpmnElement="task_collect_results">
+        <dc:Bounds x="1086" y="80" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_demo_complete_di" bpmnElement="end_demo_complete">
+        <dc:Bounds x="1276" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1270" y="145" width="48" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_start_to_prepare_di" bpmnElement="flow_start_to_prepare">
+        <di:waypoint x="196" y="120" />
+        <di:waypoint x="246" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_prepare_to_loop_di" bpmnElement="flow_prepare_to_loop">
+        <di:waypoint x="356" y="120" />
+        <di:waypoint x="426" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_loop_to_gw_di" bpmnElement="flow_loop_to_gw">
+        <di:waypoint x="536" y="120" />
+        <di:waypoint x="606" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_loop_back_di" bpmnElement="flow_loop_back">
+        <di:waypoint x="631" y="145" />
+        <di:waypoint x="631" y="250" />
+        <di:waypoint x="481" y="250" />
+        <di:waypoint x="481" y="160" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="539" y="255" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_loop_continue_di" bpmnElement="flow_loop_continue">
+        <di:waypoint x="656" y="120" />
+        <di:waypoint x="726" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="675" y="102" width="27" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_sequential_to_parallel_di" bpmnElement="flow_sequential_to_parallel">
+        <di:waypoint x="836" y="120" />
+        <di:waypoint x="906" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_parallel_to_collect_di" bpmnElement="flow_parallel_to_collect">
+        <di:waypoint x="1016" y="120" />
+        <di:waypoint x="1086" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_collect_to_end_di" bpmnElement="flow_collect_to_end">
+        <di:waypoint x="1196" y="120" />
+        <di:waypoint x="1276" y="120" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

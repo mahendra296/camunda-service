@@ -1,6 +1,6 @@
-# Camunda Service — Order Management & Airtel Loan
+# Camunda Service — Order Management, Airtel Loan & Multi-Instance Demo
 
-A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle** and the **Airtel loan origination** flow.
+A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle**, the **Airtel loan origination** flow, and a **multi-instance demo** that explains loop, sequential, and parallel iteration patterns.
 
 ---
 
@@ -13,6 +13,7 @@ A Spring Boot + Camunda 8 service that orchestrates multiple business processes 
 5. [REST API Endpoints](#rest-api-endpoints)
    - [Order Management API](#order-management-api)
    - [Airtel Loan API](#airtel-loan-api)
+   - [Multi-Instance Demo API](#multi-instance-demo-api)
 
 ---
 
@@ -50,11 +51,13 @@ src/main/java/com/camunda/
 ├── controller/
 │   ├── OrderProcessController.java         ← Order & message endpoints
 │   ├── UserTaskController.java             ← User task completion endpoints
-│   └── AirtelLoanController.java           ← Airtel loan initiation endpoint
+│   ├── AirtelLoanController.java           ← Airtel loan initiation endpoint
+│   └── DemoProcessController.java          ← POST /api/demo/start
 ├── service/
 │   ├── OrderProcessService.java            ← Process instance & message logic
 │   ├── UserTaskService.java                ← Job completion via JobClient
-│   └── AirtelLoanService.java              ← Starts airtel-loan-capbpm-process
+│   ├── AirtelLoanService.java              ← Starts airtel-loan-capbpm-process
+│   └── DemoProcessService.java             ← Starts multi-instance-demo-process
 ├── worker/
 │   ├── UserTaskInterceptorWorker.java      ← io.camunda.zeebe:userTask — stores jobKey as variable
 │   ├── ValidateOrderWorker.java            ← order.validate
@@ -75,7 +78,13 @@ src/main/java/com/camunda/
 │   ├── ProcessCancellationWorker.java      ← order.process-cancellation
 │   ├── HandleSlaBreachWorker.java          ← order.handle-sla-breach
 │   ├── ReshipOrderWorker.java              ← order.reship
-│   └── ProcessRefundWorker.java            ← order.process-refund
+│   ├── ProcessRefundWorker.java            ← order.process-refund
+│   └── demo/
+│       ├── PrepareDataWorker.java          ← demo.prepareData
+│       ├── ProcessLoopWorker.java          ← demo.processLoop
+│       ├── ProcessSequentialWorker.java    ← demo.processSequential
+│       ├── ProcessParallelWorker.java      ← demo.processParallel
+│       └── CollectResultsWorker.java       ← demo.collectResults
 ├── dto/
 │   ├── OrderRequest.java
 │   ├── OrderItemDto.java
@@ -84,14 +93,16 @@ src/main/java/com/camunda/
 │   ├── AirtelLoanRequest.java
 │   ├── AirtelLoanResponse.java
 │   ├── AirtelKycCallbackRequest.java
-│   └── AirtelLoanSubmitRequest.java
+│   ├── AirtelLoanSubmitRequest.java
+│   └── StartDemoResponse.java
 └── exceptions/
     ├── GlobalExceptionHandler.java
     ├── OrderNotFoundException.java
     └── OrderConflictException.java
 src/main/resources/workflow/
 ├── order-management-process.bpmn
-└── airtel-loan-process.bpmn
+├── airtel-loan-process.bpmn
+└── multi-instance-demo-process.bpmn
 ```
 
 ---
@@ -278,6 +289,8 @@ src/main/resources/workflow/
 ## REST API Endpoints
 
 > **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}` · `{{msisdn}}`
+
+> No extra variables are needed for the Multi-Instance Demo — the endpoint takes no body.
 
 ---
 
@@ -628,3 +641,133 @@ curl -X POST {{baseURL}}/api/airtel/loans/submit \
 | Get credit score | `GetCreditScoreWorker` | `eligible` | `false` → process ends; `true` → wait for loan application |
 | Check customer in CBS | `CheckCustomerInCbsWorker` | `customerInCbs` | `false` → onboard in CBS first; `true` → proceed to disbursement |
 
+---
+
+## Multi-Instance Demo
+
+### Multi-Instance Demo Workers
+
+| Job Type | Worker | Pattern | Key Variables |
+|---|---|---|---|
+| `demo.prepareData` | `PrepareDataWorker` | Setup | Sets `items`, `loopCounter=0`, `maxLoops=3`, `loopDone=false` |
+| `demo.processLoop` | `ProcessLoopWorker` | Loop (XOR gateway) | Increments `loopCounter`; sets `loopDone=true` at iteration 3 |
+| `demo.processSequential` | `ProcessSequentialWorker` | Sequential MI | Receives `currentItem`; outputs `sequentialResult` per item |
+| `demo.processParallel` | `ProcessParallelWorker` | Parallel MI | Receives `currentItem`; outputs `parallelResult` per item |
+| `demo.collectResults` | `CollectResultsWorker` | Collect | Reads `sequentialResults[]` and `parallelResults[]`; logs summary |
+
+### Multi-Instance Demo Process Flow
+
+```
+[Start] → [Prepare Data]
+              │
+              │  items=["Item-A","Item-B","Item-C"], loopCounter=0, maxLoops=3
+              ▼
+     ┌──► [Process with Loop]  ── demo.processLoop ──► ProcessLoopWorker
+     │           │                 increments loopCounter each time
+     │           ▼
+     │    <Loop Done?>  (loopDone = loopCounter >= 3)
+     │    ├── NOT DONE (false) ─────────────────────────────────┘  (token goes back)
+     │    │
+     └────┘
+          │
+          └── DONE (true)
+                │
+                ▼
+     [Process Sequentially]  ── demo.processSequential ──► ProcessSequentialWorker
+      isSequential="true"         Zeebe runs: Item-A → completes
+      inputCollection="=items"                Item-B → completes
+      outputCollection="sequentialResults"    Item-C → completes
+                │                             (strictly one at a time)
+                ▼
+     [Process in Parallel]  ── demo.processParallel ──► ProcessParallelWorker
+      isSequential="false"        Zeebe runs: Item-A ┐
+      inputCollection="=items"                Item-B ├─ all three jobs active simultaneously
+      outputCollection="parallelResults"      Item-C ┘
+                │                             (task completes when last one finishes)
+                ▼
+     [Collect Results]  ── demo.collectResults ──► CollectResultsWorker
+      Logs sequentialResults[] and parallelResults[] side-by-side
+                │
+                ▼
+            [End]
+```
+
+### Pattern Comparison
+
+| | Loop | Sequential MI | Parallel MI |
+|---|---|---|---|
+| **How it's driven** | XOR gateway routes token back | Zeebe iterates collection automatically | Zeebe iterates collection automatically |
+| **Jobs active at once** | 1 | 1 | N (all items simultaneously) |
+| **Order guaranteed** | Yes (single token) | Yes (Item-A → B → C) | No (whichever finishes first) |
+| **BPMN element** | `exclusiveGateway` + back-flow | `multiInstanceLoopCharacteristics isSequential="true"` | `multiInstanceLoopCharacteristics isSequential="false"` |
+| **Counter managed by** | Process variable (`loopCounter`) | Zeebe internally | Zeebe internally |
+
+---
+
+## Multi-Instance Demo API
+
+### Start Multi-Instance Demo
+
+> Starts `multi-instance-demo-process`. No request body needed — `PrepareDataWorker` initialises all variables. Watch the application logs to see the three patterns execute in sequence.
+
+```bash
+curl -X POST {{baseURL}}/api/demo/start
+```
+
+**Response:**
+
+```json
+{
+  "processInstanceKey": 2251799813685300,
+  "status": "STARTED",
+  "message": "Watch the logs: loop fires 3×, then sequential (Item-A→B→C), then parallel (all at once)"
+}
+```
+
+---
+
+### What to Observe in the Logs
+
+**Pattern 1 — Loop** (`ProcessLoopWorker`):
+
+```
+[DEMO][Loop] iteration 1/3 | loopDone=false  ← gateway routes token back
+[DEMO][Loop] iteration 2/3 | loopDone=false  ← gateway routes token back
+[DEMO][Loop] iteration 3/3 | loopDone=true   ← gateway routes forward
+```
+
+**Pattern 2 — Sequential Multi-Instance** (`ProcessSequentialWorker`):
+
+```
+[DEMO][Sequential] processing item='Item-A' (one at a time)
+[DEMO][Sequential] Completed item='Item-A'
+[DEMO][Sequential] processing item='Item-B' (one at a time)   ← starts only after A completes
+[DEMO][Sequential] Completed item='Item-B'
+[DEMO][Sequential] processing item='Item-C' (one at a time)
+[DEMO][Sequential] Completed item='Item-C'
+```
+
+**Pattern 3 — Parallel Multi-Instance** (`ProcessParallelWorker`):
+
+```
+[DEMO][Parallel] processing item='Item-A' (all items run simultaneously)
+[DEMO][Parallel] processing item='Item-B' (all items run simultaneously)  ← same timestamp
+[DEMO][Parallel] processing item='Item-C' (all items run simultaneously)  ← same timestamp
+```
+
+**Pattern 4 — Collect Results** (`CollectResultsWorker`):
+
+```
+══════════════════════════════════════════════════════
+  DEMO SUMMARY
+══════════════════════════════════════════════════════
+  Sequential results (ordered, one at a time):
+    [1] {item=Item-A, pattern=sequential, processedAt=...}
+    [2] {item=Item-B, pattern=sequential, processedAt=...}
+    [3] {item=Item-C, pattern=sequential, processedAt=...}
+  Parallel results (all at once, arrival order varies):
+    [1] {item=Item-B, pattern=parallel, processedAt=...}
+    [2] {item=Item-A, pattern=parallel, processedAt=...}
+    [3] {item=Item-C, pattern=parallel, processedAt=...}
+══════════════════════════════════════════════════════
+```
