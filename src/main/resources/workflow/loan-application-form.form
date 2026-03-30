@@ -1,0 +1,242 @@
+{
+  "components": [
+    {
+      "text": "### Loan Application Form\nPlease complete all required fields carefully. Your information will be validated before submission.",
+      "type": "text",
+      "id": "text_header"
+    },
+    {
+      "type": "separator",
+      "id": "sep_1"
+    },
+    {
+      "label": "Personal Information",
+      "components": [
+        {
+          "label": "Full Name",
+          "type": "textfield",
+          "id": "field_applicantName",
+          "key": "applicantName",
+          "validate": {
+            "required": true,
+            "minLength": 3
+          },
+          "properties": {}
+        },
+        {
+          "label": "National ID / Passport Number",
+          "type": "textfield",
+          "id": "field_nationalId",
+          "key": "nationalId",
+          "validate": {
+            "required": true
+          },
+          "properties": {}
+        },
+        {
+          "label": "Email Address",
+          "type": "textfield",
+          "id": "field_emailAddress",
+          "key": "emailAddress",
+          "validate": {
+            "required": true,
+            "pattern": {
+              "value": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+              "message": "Please enter a valid email address"
+            }
+          },
+          "properties": {}
+        },
+        {
+          "label": "Phone Number",
+          "type": "textfield",
+          "id": "field_phoneNumber",
+          "key": "phoneNumber",
+          "validate": {
+            "required": true
+          },
+          "properties": {}
+        },
+        {
+          "subtype": "date",
+          "type": "datetime",
+          "id": "field_dateOfBirth",
+          "key": "dateOfBirth",
+          "label": "Date of Birth",
+          "validate": {
+            "required": true
+          },
+          "properties": {}
+        }
+      ],
+      "showOutline": true,
+      "type": "group",
+      "id": "group_personal",
+      "properties": {}
+    },
+    {
+      "type": "separator",
+      "id": "sep_2"
+    },
+    {
+      "label": "Financial Information",
+      "components": [
+        {
+          "label": "Employment Type",
+          "values": [
+            {
+              "label": "Employed (Full-time / Part-time)",
+              "value": "EMPLOYED"
+            },
+            {
+              "label": "Self-Employed",
+              "value": "SELF_EMPLOYED"
+            },
+            {
+              "label": "Business Owner",
+              "value": "BUSINESS_OWNER"
+            },
+            {
+              "label": "Retired",
+              "value": "RETIRED"
+            }
+          ],
+          "type": "select",
+          "id": "field_employmentType",
+          "key": "employmentType",
+          "validate": {
+            "required": true
+          },
+          "properties": {}
+        },
+        {
+          "label": "Gross Monthly Income",
+          "type": "number",
+          "id": "field_monthlyIncome",
+          "key": "monthlyIncome",
+          "validate": {
+            "required": true,
+            "min": 1
+          },
+          "properties": {}
+        },
+        {
+          "label": "Requested Loan Amount",
+          "type": "number",
+          "id": "field_requestedAmount",
+          "key": "requestedAmount",
+          "validate": {
+            "required": true,
+            "min": 100
+          },
+          "properties": {}
+        },
+        {
+          "label": "Loan Tenure (months)",
+          "type": "number",
+          "id": "field_tenureMonths",
+          "key": "tenureMonths",
+          "validate": {
+            "required": true,
+            "min": 1,
+            "max": 60
+          },
+          "properties": {}
+        }
+      ],
+      "showOutline": true,
+      "type": "group",
+      "id": "group_financial",
+      "properties": {}
+    },
+    {
+      "type": "separator",
+      "id": "sep_3"
+    },
+    {
+      "label": "Loan Details",
+      "components": [
+        {
+          "label": "Loan Purpose",
+          "values": [
+            {
+              "label": "Personal",
+              "value": "PERSONAL"
+            },
+            {
+              "label": "Business",
+              "value": "BUSINESS"
+            },
+            {
+              "label": "Education",
+              "value": "EDUCATION"
+            },
+            {
+              "label": "Medical",
+              "value": "MEDICAL"
+            },
+            {
+              "label": "Home Improvement",
+              "value": "HOME_IMPROVEMENT"
+            }
+          ],
+          "type": "radio",
+          "id": "field_loanPurpose",
+          "key": "loanPurpose",
+          "validate": {
+            "required": true
+          },
+          "properties": {}
+        },
+        {
+          "label": "Additional Information (optional)",
+          "type": "textarea",
+          "id": "field_additionalInfo",
+          "key": "additionalInfo",
+          "properties": {}
+        }
+      ],
+      "showOutline": true,
+      "type": "group",
+      "id": "group_loan_details",
+      "properties": {}
+    },
+    {
+      "type": "separator",
+      "id": "sep_4"
+    },
+    {
+      "label": "Declaration",
+      "components": [
+        {
+          "text": "By submitting this form you confirm that all information provided is accurate and complete. You consent to a credit check and agree to the loan terms and conditions.",
+          "type": "text",
+          "id": "text_terms"
+        },
+        {
+          "label": "I accept the terms and conditions",
+          "type": "checkbox",
+          "id": "field_termsAccepted",
+          "key": "termsAccepted",
+          "validate": {
+            "required": true
+          },
+          "properties": {}
+        }
+      ],
+      "showOutline": true,
+      "type": "group",
+      "id": "group_declaration",
+      "properties": {}
+    }
+  ],
+  "id": "loan-application-form",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.45.0"
+  },
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.6.0",
+  "type": "default",
+  "schemaVersion": 19
+}

@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1kog0sf" name="DRD" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" exporterVersion="5.45.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <decision id="loan-risk-rules" name="loan-risk-decision">
+    <decisionTable id="DecisionTable_0i5oukm" hitPolicy="FIRST">
+      <input id="input_credit_score" label="Credit Score">
+        <inputExpression id="inputExpression_credit_score" typeRef="integer">
+          <text>creditScore</text>
+        </inputExpression>
+      </input>
+      <input id="input_dti_ratio" label="Debt-to-Income Ratio (annual)">
+        <inputExpression id="inputExpression_dti" typeRef="double">
+          <text>requestedAmount / (monthlyIncome * 12)</text>
+        </inputExpression>
+      </input>
+      <input id="input_age" label="Applicant Age">
+        <inputExpression id="inputExpression_age" typeRef="integer">
+          <text>applicantAge</text>
+        </inputExpression>
+      </input>
+      <output id="output_risk_level" label="Risk Level" name="riskLevel" typeRef="string" />
+      <output id="output_risk_score" label="Risk Score" name="riskScore" typeRef="integer" />
+      <rule id="rule_1">
+        <description>Excellent credit (≥750) + very low DTI (≤25%) + age ≥25 → LOW</description>
+        <inputEntry id="ie_1_cs">
+          <text>[750..850]</text>
+        </inputEntry>
+        <inputEntry id="ie_1_dti">
+          <text>[0..0.25]</text>
+        </inputEntry>
+        <inputEntry id="ie_1_age">
+          <text>&gt;= 25</text>
+        </inputEntry>
+        <outputEntry id="oe_1_level">
+          <text>"LOW"</text>
+        </outputEntry>
+        <outputEntry id="oe_1_score">
+          <text>10</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_2">
+        <description>Excellent credit (≥750) + low DTI (≤40%) → LOW regardless of age</description>
+        <inputEntry id="ie_2_cs">
+          <text>[750..850]</text>
+        </inputEntry>
+        <inputEntry id="ie_2_dti">
+          <text>[0..0.40]</text>
+        </inputEntry>
+        <inputEntry id="ie_2_age">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="oe_2_level">
+          <text>"LOW"</text>
+        </outputEntry>
+        <outputEntry id="oe_2_score">
+          <text>22</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_3">
+        <description>Very good credit (700–749) + low DTI (≤30%) + age ≥25 → LOW</description>
+        <inputEntry id="ie_3_cs">
+          <text>[700..749]</text>
+        </inputEntry>
+        <inputEntry id="ie_3_dti">
+          <text>[0..0.30]</text>
+        </inputEntry>
+        <inputEntry id="ie_3_age">
+          <text>&gt;= 25</text>
+        </inputEntry>
+        <outputEntry id="oe_3_level">
+          <text>"LOW"</text>
+        </outputEntry>
+        <outputEntry id="oe_3_score">
+          <text>30</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_4">
+        <description>Good credit (650–749) + medium DTI (≤40%) + age ≥30 → MEDIUM</description>
+        <inputEntry id="ie_4_cs">
+          <text>[650..749]</text>
+        </inputEntry>
+        <inputEntry id="ie_4_dti">
+          <text>[0..0.40]</text>
+        </inputEntry>
+        <inputEntry id="ie_4_age">
+          <text>&gt;= 30</text>
+        </inputEntry>
+        <outputEntry id="oe_4_level">
+          <text>"MEDIUM"</text>
+        </outputEntry>
+        <outputEntry id="oe_4_score">
+          <text>45</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_5">
+        <description>Acceptable credit (≥600) + medium DTI (≤50%) + age ≥25 → MEDIUM</description>
+        <inputEntry id="ie_5_cs">
+          <text>&gt;= 600</text>
+        </inputEntry>
+        <inputEntry id="ie_5_dti">
+          <text>[0..0.50]</text>
+        </inputEntry>
+        <inputEntry id="ie_5_age">
+          <text>&gt;= 25</text>
+        </inputEntry>
+        <outputEntry id="oe_5_level">
+          <text>"MEDIUM"</text>
+        </outputEntry>
+        <outputEntry id="oe_5_score">
+          <text>55</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_6">
+        <description>Acceptable credit (≥600) + medium DTI (≤50%) + young (18–24) → MEDIUM (elevated)</description>
+        <inputEntry id="ie_6_cs">
+          <text>&gt;= 600</text>
+        </inputEntry>
+        <inputEntry id="ie_6_dti">
+          <text>[0..0.50]</text>
+        </inputEntry>
+        <inputEntry id="ie_6_age">
+          <text>[18..24]</text>
+        </inputEntry>
+        <outputEntry id="oe_6_level">
+          <text>"MEDIUM"</text>
+        </outputEntry>
+        <outputEntry id="oe_6_score">
+          <text>65</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_7">
+        <description>Fair credit (500–599) + low DTI (≤35%) → MEDIUM (borderline)</description>
+        <inputEntry id="ie_7_cs">
+          <text>[500..599]</text>
+        </inputEntry>
+        <inputEntry id="ie_7_dti">
+          <text>[0..0.35]</text>
+        </inputEntry>
+        <inputEntry id="ie_7_age">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="oe_7_level">
+          <text>"MEDIUM"</text>
+        </outputEntry>
+        <outputEntry id="oe_7_score">
+          <text>72</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_8">
+        <description>Poor credit (&lt;500) or excessive DTI (&gt;50%) → HIGH</description>
+        <inputEntry id="ie_8_cs">
+          <text>&lt;=500</text>
+        </inputEntry>
+        <inputEntry id="ie_8_dti">
+          <text>&lt;=0.35</text>
+        </inputEntry>
+        <inputEntry id="ie_8_age">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="oe_8_level">
+          <text>"HIGH"</text>
+        </outputEntry>
+        <outputEntry id="oe_8_score">
+          <text>85</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram>
+      <dmndi:DMNShape id="Decision_1alzdqg_di" dmnElementRef="loan-risk-rules">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

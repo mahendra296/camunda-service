@@ -34,10 +34,7 @@ public class PrepareDataWorker {
         log.info("[DEMO][PrepareData] Prepared items={} loopIndex=0 loopDone=false", items);
 
         client.newCompleteCommand(job.getKey())
-                .variables(Map.of(
-                        "items", items,
-                        "loopIndex", 0,
-                        "loopDone", false))
+                .variables(Map.of("items", items, "loopIndex", 0, "loopDone", false))
                 .send()
                 .join();
     }

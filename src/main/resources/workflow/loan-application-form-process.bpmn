@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_LoanApplicationForm" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.45.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <bpmn:process id="loan-application-form-process" name="Loan Application Form" isExecutable="true">
+
+    <!-- ═══════════════════ START ═══════════════════ -->
+    <bpmn:startEvent id="start_event_form_process" name="Application&#10;Started">
+      <bpmn:outgoing>flow_start_to_fill</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ═══════════════════ FILL APPLICATION (User Task + Form) ═══════════════════ -->
+    <!--
+      Demonstrates Camunda Form components:
+        textfield, number, select, radio, datetime, textarea, checkbox, group, separator, text
+      bindingType="latest" — Zeebe resolves the form by ID at runtime using the latest deployed
+      version. Deploy loan-application-form.form separately (once) before starting this process.
+      UserTaskInterceptorWorker stores task_fill_application_jobKey as a process variable.
+    -->
+    <bpmn:userTask id="task_fill_application" name="Fill Loan&#10;Application Form">
+      <bpmn:extensionElements>
+        <zeebe:userTask />
+        <zeebe:formDefinition formId="loan-application-form" bindingType="latest" />
+        <zeebe:assignmentDefinition assignee="applicant" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_start_to_fill</bpmn:incoming>
+      <bpmn:outgoing>flow_fill_to_validate</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ═══════════════════ VALIDATE FORM DATA (Service Task) ═══════════════════ -->
+    <bpmn:serviceTask id="task_validate_application_data" name="Validate&#10;Application Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="form.validate-application-data" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_fill_to_validate</bpmn:incoming>
+      <bpmn:outgoing>flow_validate_to_gw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════ GATEWAY: Form Valid? ═══════════════════ -->
+    <bpmn:exclusiveGateway id="gw_form_valid" name="Form&#10;Valid?">
+      <bpmn:incoming>flow_validate_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_gw_to_submit</bpmn:outgoing>
+      <bpmn:outgoing>flow_gw_to_notify</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ═══════════════════ SUBMIT FOR REVIEW (Service Task — valid path) ═══════════════════ -->
+    <bpmn:serviceTask id="task_submit_for_review" name="Submit Application&#10;for Review">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="form.submit-for-review" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_to_submit</bpmn:incoming>
+      <bpmn:outgoing>flow_submit_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════ NOTIFY INCOMPLETE (Service Task — invalid path) ═══════════════════ -->
+    <bpmn:serviceTask id="task_notify_incomplete" name="Notify&#10;Incomplete Form">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="form.notify-incomplete" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_to_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_notify_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════ END EVENTS ═══════════════════ -->
+    <bpmn:endEvent id="end_submitted" name="Application&#10;Submitted">
+      <bpmn:incoming>flow_submit_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_form_invalid" name="Form&#10;Incomplete">
+      <bpmn:incoming>flow_notify_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ═══════════════════ SEQUENCE FLOWS ═══════════════════ -->
+    <bpmn:sequenceFlow id="flow_start_to_fill" sourceRef="start_event_form_process" targetRef="task_fill_application" />
+    <bpmn:sequenceFlow id="flow_fill_to_validate" sourceRef="task_fill_application" targetRef="task_validate_application_data" />
+    <bpmn:sequenceFlow id="flow_validate_to_gw" sourceRef="task_validate_application_data" targetRef="gw_form_valid" />
+    <bpmn:sequenceFlow id="flow_gw_to_submit" name="Valid" sourceRef="gw_form_valid" targetRef="task_submit_for_review">
+      <bpmn:conditionExpression>=formValid = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_gw_to_notify" name="Invalid" sourceRef="gw_form_valid" targetRef="task_notify_incomplete">
+      <bpmn:conditionExpression>=formValid = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_submit_to_end" sourceRef="task_submit_for_review" targetRef="end_submitted" />
+    <bpmn:sequenceFlow id="flow_notify_to_end" sourceRef="task_notify_incomplete" targetRef="end_form_invalid" />
+
+  </bpmn:process>
+
+  <!-- ═══════════════════ DIAGRAM INTERCHANGE (DI) ═══════════════════ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="loan-application-form-process">
+
+      <bpmndi:BPMNShape id="start_event_form_process_di" bpmnElement="start_event_form_process">
+        <dc:Bounds x="162" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="148" y="295" width="64" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_fill_application_di" bpmnElement="task_fill_application">
+        <dc:Bounds x="248" y="230" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_validate_application_data_di" bpmnElement="task_validate_application_data">
+        <dc:Bounds x="418" y="230" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="gw_form_valid_di" bpmnElement="gw_form_valid" isMarkerVisible="true">
+        <dc:Bounds x="588" y="245" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="576" y="302" width="73" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_submit_for_review_di" bpmnElement="task_submit_for_review">
+        <dc:Bounds x="698" y="230" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="end_submitted_di" bpmnElement="end_submitted">
+        <dc:Bounds x="868" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="851" y="295" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_notify_incomplete_di" bpmnElement="task_notify_incomplete">
+        <dc:Bounds x="558" y="380" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="end_form_invalid_di" bpmnElement="end_form_invalid">
+        <dc:Bounds x="728" y="402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="711" y="445" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="flow_start_to_fill_di" bpmnElement="flow_start_to_fill">
+        <di:waypoint x="198" y="270" />
+        <di:waypoint x="248" y="270" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_fill_to_validate_di" bpmnElement="flow_fill_to_validate">
+        <di:waypoint x="358" y="270" />
+        <di:waypoint x="418" y="270" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_validate_to_gw_di" bpmnElement="flow_validate_to_gw">
+        <di:waypoint x="528" y="270" />
+        <di:waypoint x="588" y="270" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_gw_to_submit_di" bpmnElement="flow_gw_to_submit">
+        <di:waypoint x="638" y="270" />
+        <di:waypoint x="698" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="651" y="252" width="26" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_gw_to_notify_di" bpmnElement="flow_gw_to_notify">
+        <di:waypoint x="613" y="295" />
+        <di:waypoint x="613" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="619" y="330" width="34" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_submit_to_end_di" bpmnElement="flow_submit_to_end">
+        <di:waypoint x="808" y="270" />
+        <di:waypoint x="868" y="270" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_notify_to_end_di" bpmnElement="flow_notify_to_end">
+        <di:waypoint x="668" y="420" />
+        <di:waypoint x="728" y="420" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -32,10 +32,7 @@ import org.springframework.stereotype.Component;
 public class ProcessParallelWorker {
 
     @JobWorker(type = "demo.processParallel", autoComplete = false)
-    public void handle(
-            final JobClient client,
-            final ActivatedJob job,
-            @Variable String currentItem) {
+    public void handle(final JobClient client, final ActivatedJob job, @Variable String currentItem) {
 
         log.info(
                 "[DEMO][Parallel] type={} key={} | processing item='{}' (all items run simultaneously)",
@@ -43,10 +40,7 @@ public class ProcessParallelWorker {
                 job.getKey(),
                 currentItem);
 
-        var result = Map.of(
-                "item", currentItem,
-                "pattern", "parallel",
-                "processedAt", System.currentTimeMillis());
+        var result = Map.of("item", currentItem, "pattern", "parallel", "processedAt", System.currentTimeMillis());
 
         log.info("[DEMO][Parallel] Completed item='{}' result={}", currentItem, result);
 

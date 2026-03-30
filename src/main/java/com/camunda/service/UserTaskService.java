@@ -40,6 +40,37 @@ public class UserTaskService {
     }
 
     /**
+     * Completes the "Fill Loan Application Form" user task (assignee: applicant).
+     * Passes all form field values directly as process variables.
+     */
+    public void completeFillApplication(long taskKey, Map<String, Object> formData) {
+        log.info(
+                "[UserTaskService] Completing fill-application taskKey={} applicant={}",
+                taskKey,
+                formData.get("applicantName"));
+        jobClient.newCompleteCommand(taskKey).variables(formData).send().join();
+    }
+
+    /**
+     * Completes the "Manual Loan Review" user task (assignee: loan-officer).
+     * Sets reviewDecision (APPROVED/REJECTED/MORE_INFO) and reviewNote.
+     */
+    public void completeLoanReview(long taskKey, String reviewDecision, String reviewNote) {
+        log.info("[UserTaskService] Completing loan review taskKey={} decision={}", taskKey, reviewDecision);
+        jobClient
+                .newCompleteCommand(taskKey)
+                .variables(Map.of(
+                        "reviewDecision",
+                        reviewDecision != null ? reviewDecision : "REJECTED",
+                        "reviewNote",
+                        reviewNote != null ? reviewNote : "",
+                        "reviewedAt",
+                        System.currentTimeMillis()))
+                .send()
+                .join();
+    }
+
+    /**
      * Completes the "Handle Delivery Issue" user task (assignee: support-agent).
      * Sets resolution="RESHIP" or "REFUND" to drive the gw_reship_or_refund gateway.
      */

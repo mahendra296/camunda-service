@@ -1,6 +1,6 @@
-# Camunda Service — Order Management, Airtel Loan & Multi-Instance Demo
+# Camunda Service — Order Management, Airtel Loan, Loan Risk Assessment, Loan Application Form & Multi-Instance Demo
 
-A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle**, the **Airtel loan origination** flow, and a **multi-instance demo** that explains loop, sequential, and parallel iteration patterns.
+A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle**, the **Airtel loan origination** flow, a **loan risk assessment** process featuring a Business Rule Task, a **loan application form** process demonstrating Camunda Form components, and a **multi-instance demo** that explains loop, sequential, and parallel iteration patterns.
 
 ---
 
@@ -13,6 +13,8 @@ A Spring Boot + Camunda 8 service that orchestrates multiple business processes 
 5. [REST API Endpoints](#rest-api-endpoints)
    - [Order Management API](#order-management-api)
    - [Airtel Loan API](#airtel-loan-api)
+   - [Loan Risk Assessment API](#loan-risk-assessment-api)
+   - [Loan Application Form API](#loan-application-form-api)
    - [Multi-Instance Demo API](#multi-instance-demo-api)
 
 ---
@@ -52,11 +54,15 @@ src/main/java/com/camunda/
 │   ├── OrderProcessController.java         ← Order & message endpoints
 │   ├── UserTaskController.java             ← User task completion endpoints
 │   ├── AirtelLoanController.java           ← Airtel loan initiation endpoint
+│   ├── LoanRiskAssessmentController.java   ← POST /api/loans/assess
+│   ├── LoanApplicationFormController.java  ← POST /api/loan-forms/start, /{taskKey}/submit
 │   └── DemoProcessController.java          ← POST /api/demo/start
 ├── service/
 │   ├── OrderProcessService.java            ← Process instance & message logic
 │   ├── UserTaskService.java                ← Job completion via JobClient
 │   ├── AirtelLoanService.java              ← Starts airtel-loan-capbpm-process
+│   ├── LoanRiskAssessmentService.java      ← Starts loan-risk-assessment-process
+│   ├── LoanApplicationFormService.java     ← Starts loan-application-form-process
 │   └── DemoProcessService.java             ← Starts multi-instance-demo-process
 ├── worker/
 │   ├── UserTaskInterceptorWorker.java      ← io.camunda.zeebe:userTask — stores jobKey as variable
@@ -79,6 +85,16 @@ src/main/java/com/camunda/
 │   ├── HandleSlaBreachWorker.java          ← order.handle-sla-breach
 │   ├── ReshipOrderWorker.java              ← order.reship
 │   ├── ProcessRefundWorker.java            ← order.process-refund
+│   ├── form/
+│   │   ├── ValidateApplicationDataWorker.java  ← form.validate-application-data
+│   │   ├── SubmitForReviewWorker.java           ← form.submit-for-review
+│   │   └── NotifyIncompleteWorker.java          ← form.notify-incomplete
+│   ├── loan/
+│   │   ├── ValidateLoanApplicationWorker.java  ← loan.validate-application
+│   │   ├── SendRejectionNotificationWorker.java ← loan.send-rejection-notification
+│   │   ├── AutoApproveLoanWorker.java           ← loan.auto-approve
+│   │   └── AutoRejectLoanWorker.java            ← loan.auto-reject
+│   │   (risk evaluation → Zeebe DMN engine, no worker needed)
 │   └── demo/
 │       ├── PrepareDataWorker.java          ← demo.prepareData
 │       ├── ProcessLoopWorker.java          ← demo.processLoop
@@ -94,6 +110,8 @@ src/main/java/com/camunda/
 │   ├── AirtelLoanResponse.java
 │   ├── AirtelKycCallbackRequest.java
 │   ├── AirtelLoanSubmitRequest.java
+│   ├── LoanApplicationRequest.java
+│   ├── LoanAssessmentResponse.java
 │   └── StartDemoResponse.java
 └── exceptions/
     ├── GlobalExceptionHandler.java
@@ -102,6 +120,10 @@ src/main/java/com/camunda/
 src/main/resources/workflow/
 ├── order-management-process.bpmn
 ├── airtel-loan-process.bpmn
+├── loan-risk-assessment-process.bpmn
+├── loan-risk-rules.dmn
+├── loan-application-form-process.bpmn
+├── loan-application-form.form
 └── multi-instance-demo-process.bpmn
 ```
 
@@ -216,6 +238,74 @@ src/main/resources/workflow/
 
 ---
 
+### Loan Application Form Process Flow
+
+```
+[Start: Application Started]
+        │
+        ▼
+[Fill Loan Application Form ☰]  ── User Task (assignee: applicant)
+  Form fields: textfield, number, select, radio, datetime, textarea, checkbox
+        │
+        ▼
+[Validate Application Data]  ── form.validate-application-data ──► ValidateApplicationDataWorker
+        │
+   <Form Valid?>
+   ├── NO  ──► [Notify Incomplete Form]  ── form.notify-incomplete ──► NotifyIncompleteWorker
+   │                     │
+   │                     ▼
+   │            [END: Form Incomplete]
+   │
+   └── YES ──► [Submit Application for Review]  ── form.submit-for-review ──► SubmitForReviewWorker
+                         │
+                         ▼
+                [END: Application Submitted]
+```
+
+---
+
+### Loan Risk Assessment Process Flow
+
+```
+[Start: Application Received]
+        │
+        ▼
+[Validate Application]  ── loan.validate-application ──► ValidateLoanApplicationWorker
+        │
+   <Application Valid?>
+   ├── NO  ──► [Send Rejection Notification]  ── loan.send-rejection-notification
+   │                   │                         ──► SendRejectionNotificationWorker
+   │                   ▼
+   │            [END: Application Invalid]
+   │
+   └── YES ──► [Evaluate Risk Rules ⬡]  ── loan.evaluate-risk-rules ──► EvaluateRiskRulesWorker
+                        │                  (Business Rule Task)
+                        │   Rules: creditScore + debtToIncomeRatio → LOW / MEDIUM / HIGH
+                        ▼
+               <Risk Level?>
+               ├── LOW    ──► [Auto Approve Loan]  ── loan.auto-approve ──► AutoApproveLoanWorker
+               │                      │
+               │                      ▼
+               │               [END: Loan Approved]
+               │
+               ├── MEDIUM ──► [Manual Loan Review]  ── User Task (loan-officer)
+               │                      │               task_manual_review_loan_jobKey
+               │                      ▼
+               │               [END: Review Pending]
+               │
+               └── HIGH   ──► [Auto Reject Loan]  ── loan.auto-reject ──► AutoRejectLoanWorker
+                                      │
+                                      ▼
+                               [END: Loan Rejected]
+```
+
+| Decision point | Worker / Element | Outcome variable | Effect |
+|---|---|---|---|
+| Validate application | `ValidateLoanApplicationWorker` | `applicationValid` | `false` → send rejection notification; `true` → evaluate risk |
+| Evaluate risk rules | `EvaluateRiskRulesWorker` (BRT) | `riskLevel` | `LOW` → auto-approve; `MEDIUM` → manual review; `HIGH` → auto-reject |
+
+---
+
 ## Job Workers Reference
 
 ### Order Workers
@@ -261,8 +351,71 @@ src/main/resources/workflow/
 | Approve Shipment | `task_approve_shipment_jobKey` | `warehouse-supervisor` |
 | Approve Cancellation | `task_approve_cancellation_jobKey` | `support-agent` |
 | Initiate Refund | `task_initiate_refund_jobKey` | `finance-agent` |
+| Manual Loan Review | `task_manual_review_loan_jobKey` | `loan-officer` |
 
 > Read the variable value from **Camunda Operate** (process instance → Variables tab) and use it as `{{taskKey}}` in the user task API calls below.
+
+---
+
+### Loan Application Form Workers
+
+| Job Type | Worker | Key Output Variables |
+|---|---|---|
+| `form.validate-application-data` | `ValidateApplicationDataWorker` | `formValid`, `formValidationError`, `formValidatedAt` |
+| `form.submit-for-review` | `SubmitForReviewWorker` | `submissionRef`, `estimatedProcessingDays`, `submittedAt` |
+| `form.notify-incomplete` | `NotifyIncompleteWorker` | `incompleteNotificationSent` |
+
+**Form Components in `loan-application-form.form`:**
+
+| Component Type | Field | Key |
+|---|---|---|
+| `textfield` | Full Name | `applicantName` |
+| `textfield` | National ID | `nationalId` |
+| `textfield` (email pattern) | Email Address | `emailAddress` |
+| `textfield` (phone pattern) | Phone Number | `phoneNumber` |
+| `datetime` (date picker) | Date of Birth | `dateOfBirth` |
+| `select` | Employment Type | `employmentType` |
+| `number` | Gross Monthly Income | `monthlyIncome` |
+| `number` | Requested Loan Amount | `requestedAmount` |
+| `number` (min 1, max 60) | Loan Tenure (months) | `tenureMonths` |
+| `radio` | Loan Purpose | `loanPurpose` |
+| `textarea` | Additional Information | `additionalInfo` |
+| `checkbox` (required) | Accept Terms | `termsAccepted` |
+| `text` | Static instructions / headings | — |
+| `group` | Section containers | — |
+| `separator` | Visual dividers | — |
+
+**User Task implementation: Camunda user task** (`<zeebe:userTask />`)
+
+`UserTaskInterceptorWorker` does **not** run for Camunda user tasks. The task key is obtained via:
+- **Camunda Tasklist UI** — find the task under the `applicant` assignee
+- **REST API:** `GET http://localhost:8080/v2/user-tasks?processInstanceKey={key}`
+
+| User Task | Assignee | Completion API |
+|---|---|---|
+| Fill Loan Application Form | `applicant` | `CamundaClient.newUserTaskCompleteCommand(userTaskKey)` |
+
+---
+
+### Loan Risk Assessment Workers
+
+| Job Type / Binding | Element Type | Worker / Engine | Key Output Variables |
+|---|---|---|---|
+| `loan.validate-application` | Service Task | `ValidateLoanApplicationWorker` | `applicationValid`, `validationError`, `validatedAt` |
+| DMN: `loan-risk-rules` | **Business Rule Task** | **Zeebe DMN engine** (no Java worker) | `riskLevel` (`LOW`/`MEDIUM`/`HIGH`), `riskScore` |
+| `loan.send-rejection-notification` | Service Task | `SendRejectionNotificationWorker` | `rejectionNotificationSent` |
+| `loan.auto-approve` | Service Task | `AutoApproveLoanWorker` | `loanApproved=true`, `approvalCode`, `approvedAmount`, `approvedAt` |
+| `loan.auto-reject` | Service Task | `AutoRejectLoanWorker` | `loanApproved=false`, `rejectionReason`, `rejectedAt` |
+
+> The **Business Rule Task** uses `zeebe:calledDecision` (not `zeebe:taskDefinition`). It calls the DMN decision table `loan-risk-rules.dmn` directly — **no Java worker is needed**. The DMN engine evaluates the rules and `zeebe:ioMapping` unpacks `riskLevel` and `riskScore` into top-level process variables.
+
+**DMN Decision Table — `loan-risk-rules.dmn`** (hit policy: FIRST)
+
+| # | Credit Score | DTI (requestedAmount ÷ annualIncome) | → riskLevel | → riskScore |
+|---|---|---|---|---|
+| 1 | [750..850] | [0..0.30] | `"LOW"` | 20 |
+| 2 | >= 600 | <= 0.50 | `"MEDIUM"` | 55 |
+| 3 | _(any)_ | _(any)_ | `"HIGH"` | 85 |
 
 ---
 
@@ -288,7 +441,7 @@ src/main/resources/workflow/
 
 ## REST API Endpoints
 
-> **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}` · `{{msisdn}}`
+> **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}` · `{{msisdn}}` · `{{applicationId}}`
 
 > No extra variables are needed for the Multi-Instance Demo — the endpoint takes no body.
 
@@ -640,6 +793,233 @@ curl -X POST {{baseURL}}/api/airtel/loans/submit \
 | Check customer exists | `CheckCustomerExistsWorker` | `customerExists` | `false` → fetch KYC; `true` → skip to opt-in |
 | Get credit score | `GetCreditScoreWorker` | `eligible` | `false` → process ends; `true` → wait for loan application |
 | Check customer in CBS | `CheckCustomerInCbsWorker` | `customerInCbs` | `false` → onboard in CBS first; `true` → proceed to disbursement |
+
+---
+
+## Loan Application Form API
+
+> **Process ID:** `loan-application-form-process`
+> **Postman variable:** `{{taskKey}}` — value of `task_fill_application_jobKey` from Camunda Operate
+
+---
+
+### Deployment Order (required)
+
+> **Deploy `loan-application-form.form` first**, then deploy `loan-application-form-process.bpmn`.
+> The form uses `bindingType="latest"` — Zeebe resolves the form by ID at runtime, so the form must exist in Camunda before any process instance is started.
+>
+> **Via Camunda Modeler:** Deploy `loan-application-form.form` → then deploy `loan-application-form-process.bpmn`.
+
+---
+
+### Start the Form Process
+
+> Starts `loan-application-form-process`. The process immediately reaches the Fill Application Form user task. Retrieve `task_fill_application_jobKey` from Operate (process instance → Variables) and use it as `{{taskKey}}` in the next step.
+
+```bash
+curl -X POST {{baseURL}}/api/loan-forms/start
+```
+
+**Response:**
+
+```json
+{
+  "trackingId": "TRK-A1B2C3D4",
+  "processInstanceKey": 2251799813685400,
+  "status": "STARTED",
+  "message": "Form process started — retrieve task_fill_application_jobKey from Operate to submit the form"
+}
+```
+
+---
+
+### Submit the Loan Application Form
+
+> Use `task_fill_application_jobKey` from Operate as `{{taskKey}}`. Submits all form field values — `ValidateApplicationDataWorker` runs next.
+
+```bash
+curl -X POST {{baseURL}}/api/loan-forms/{{taskKey}}/submit \
+  -H "Content-Type: application/json" \
+  -d '{
+    "applicantName":    "Grace Njeri",
+    "nationalId":       "NID987654",
+    "emailAddress":     "grace.njeri@example.com",
+    "phoneNumber":      "254712345678",
+    "dateOfBirth":      "1990-06-15",
+    "employmentType":   "EMPLOYED",
+    "monthlyIncome":    4500.00,
+    "requestedAmount":  20000.00,
+    "tenureMonths":     24,
+    "loanPurpose":      "HOME_IMPROVEMENT",
+    "additionalInfo":   "Renovating kitchen and bathroom",
+    "termsAccepted":    true
+  }'
+```
+
+---
+
+### Submit — Trigger Validation Failure
+
+> `termsAccepted: false` fails the validation rule → `NotifyIncompleteWorker` → `end_form_incomplete`.
+
+```bash
+curl -X POST {{baseURL}}/api/loan-forms/{{taskKey}}/submit \
+  -H "Content-Type: application/json" \
+  -d '{
+    "applicantName":  "Henry Odhiambo",
+    "nationalId":     "NID111222",
+    "emailAddress":   "henry@example.com",
+    "phoneNumber":    "254700111222",
+    "dateOfBirth":    "1985-03-20",
+    "employmentType": "SELF_EMPLOYED",
+    "monthlyIncome":  2000.00,
+    "requestedAmount": 10000.00,
+    "tenureMonths":   12,
+    "loanPurpose":    "BUSINESS",
+    "termsAccepted":  false
+  }'
+```
+
+---
+
+## Loan Risk Assessment API
+
+> **Process ID:** `loan-risk-assessment-process`
+> **Postman variable:** `{{applicationId}}` e.g. `APP-001`
+
+---
+
+### Assess Loan — LOW Risk (auto-approve)
+
+> Credit score ≥ 750 and debt-to-income ratio ≤ 30% → `EvaluateRiskRulesWorker` sets `riskLevel=LOW` → `AutoApproveLoanWorker` → `end_loan_approved`.
+
+```bash
+curl -X POST {{baseURL}}/api/loans/assess \
+  -H "Content-Type: application/json" \
+  -d '{
+    "applicationId": "APP-001",
+    "applicantName": "Alice Kariuki",
+    "applicantAge": 35,
+    "monthlyIncome": 5000.00,
+    "requestedAmount": 10000.00,
+    "creditScore": 780
+  }'
+```
+
+---
+
+### Assess Loan — MEDIUM Risk (manual review)
+
+> Credit score ≥ 600 and debt-to-income ratio ≤ 50% → `EvaluateRiskRulesWorker` sets `riskLevel=MEDIUM` → `task_manual_review_loan` user task (loan-officer). Use `task_manual_review_loan_jobKey` from Camunda Operate as `{{taskKey}}`.
+
+```bash
+curl -X POST {{baseURL}}/api/loans/assess \
+  -H "Content-Type: application/json" \
+  -d '{
+    "applicationId": "APP-002",
+    "applicantName": "Brian Omondi",
+    "applicantAge": 28,
+    "monthlyIncome": 2000.00,
+    "requestedAmount": 18000.00,
+    "creditScore": 650
+  }'
+```
+
+---
+
+### Assess Loan — HIGH Risk (auto-reject)
+
+> Credit score < 600 or debt-to-income ratio > 50% → `EvaluateRiskRulesWorker` sets `riskLevel=HIGH` → `AutoRejectLoanWorker` → `end_loan_rejected`.
+
+```bash
+curl -X POST {{baseURL}}/api/loans/assess \
+  -H "Content-Type: application/json" \
+  -d '{
+    "applicationId": "APP-003",
+    "applicantName": "Carol Wanjiru",
+    "applicantAge": 22,
+    "monthlyIncome": 1000.00,
+    "requestedAmount": 40000.00,
+    "creditScore": 520
+  }'
+```
+
+---
+
+### Assess Loan — Validation Failure (invalid application)
+
+> Empty or invalid fields → `ValidateLoanApplicationWorker` sets `applicationValid=false` → `SendRejectionNotificationWorker` → `end_application_invalid`.
+
+```bash
+curl -X POST {{baseURL}}/api/loans/assess \
+  -H "Content-Type: application/json" \
+  -d '{
+    "applicationId": "APP-004",
+    "applicantName": "David Mutua",
+    "applicantAge": 35,
+    "monthlyIncome": 3000.00,
+    "requestedAmount": 200000.00
+  }'
+```
+
+> Requested amount (200 000) exceeds 60× monthly income (180 000) — fails validation rule.
+
+---
+
+### Complete Manual Loan Review (MEDIUM risk path)
+
+> The process pauses at `task_manual_review_loan` when `riskLevel=MEDIUM`. Use `task_manual_review_loan_jobKey` from Camunda Operate as `{{taskKey}}`.
+
+**Approve:**
+
+```bash
+curl -X POST {{baseURL}}/api/tasks/{{taskKey}}/loan-review \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reviewDecision": "APPROVED",
+    "reviewNote": "Income verified and credit profile acceptable"
+  }'
+```
+
+**Reject:**
+
+```bash
+curl -X POST {{baseURL}}/api/tasks/{{taskKey}}/loan-review \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reviewDecision": "REJECTED",
+    "reviewNote": "Insufficient income history"
+  }'
+```
+
+**Request more information:**
+
+```bash
+curl -X POST {{baseURL}}/api/tasks/{{taskKey}}/loan-review \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reviewDecision": "MORE_INFO",
+    "reviewNote": "Please provide last 3 months payslips"
+  }'
+```
+
+---
+
+### Assess Loan — Omit Credit Score (simulated score)
+
+> When `creditScore` is omitted, `EvaluateRiskRulesWorker` simulates a score from age and income. Good for testing the simulation branch.
+
+```bash
+curl -X POST {{baseURL}}/api/loans/assess \
+  -H "Content-Type: application/json" \
+  -d '{
+    "applicationId": "APP-005",
+    "applicantName": "Eve Njoroge",
+    "applicantAge": 40,
+    "monthlyIncome": 4000.00,
+    "requestedAmount": 15000.00
+  }'
+```
 
 ---
 

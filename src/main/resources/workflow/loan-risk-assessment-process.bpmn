@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_LoanRiskAssessment" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.45.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <bpmn:process id="loan-risk-assessment-process" name="Loan Risk Assessment" isExecutable="true">
+
+    <!-- ═══════════════════ START ═══════════════════ -->
+    <bpmn:startEvent id="start_event_application_received" name="Application&#10;Received">
+      <bpmn:outgoing>flow_start_to_validate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- ═══════════════════ VALIDATE APPLICATION (Service Task) ═══════════════════ -->
+    <bpmn:serviceTask id="task_validate_application" name="Validate&#10;Application">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="loan.validate-application" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_start_to_validate</bpmn:incoming>
+      <bpmn:outgoing>flow_validate_to_gw_valid</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════ GATEWAY: Application Valid? ═══════════════════ -->
+    <bpmn:exclusiveGateway id="gw_application_valid" name="Application&#10;Valid?">
+      <bpmn:incoming>flow_validate_to_gw_valid</bpmn:incoming>
+      <bpmn:outgoing>flow_gw_valid_to_evaluate</bpmn:outgoing>
+      <bpmn:outgoing>flow_gw_valid_to_rejection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ═══════════════════ SEND REJECTION NOTIFICATION (Service Task — invalid path) ═══════════════════ -->
+    <bpmn:serviceTask id="task_send_rejection_notification" name="Send Rejection&#10;Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="loan.send-rejection-notification" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_valid_to_rejection</bpmn:incoming>
+      <bpmn:outgoing>flow_rejection_to_end_invalid</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════ EVALUATE RISK RULES (Business Rule Task — DMN) ═══════════════════ -->
+    <!--
+      zeebe:calledDecision links this BRT to loan-risk-rules.dmn.
+      The DMN engine evaluates the decision table and stores the result in riskDecision.
+      zeebe:ioMapping then unpacks riskDecision.riskLevel and riskDecision.riskScore
+      into top-level process variables so downstream tasks and gateways can use them directly.
+    -->
+    <bpmn:businessRuleTask id="task_evaluate_risk_rules" name="Evaluate Risk&#10;Rules">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="loan-risk-rules" resultVariable="riskDecision" />
+        <zeebe:ioMapping>
+          <zeebe:output source="=riskDecision.riskLevel" target="riskLevel" />
+          <zeebe:output source="=riskDecision.riskScore" target="riskScore" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_valid_to_evaluate</bpmn:incoming>
+      <bpmn:outgoing>flow_evaluate_to_gw_risk</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <!-- ═══════════════════ GATEWAY: Risk Level ═══════════════════ -->
+    <bpmn:exclusiveGateway id="gw_risk_level" name="Risk&#10;Level?">
+      <bpmn:incoming>flow_evaluate_to_gw_risk</bpmn:incoming>
+      <bpmn:outgoing>flow_gw_risk_to_approve</bpmn:outgoing>
+      <bpmn:outgoing>flow_gw_risk_to_review</bpmn:outgoing>
+      <bpmn:outgoing>flow_gw_risk_to_reject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ═══════════════════ AUTO APPROVE (Service Task — LOW risk) ═══════════════════ -->
+    <bpmn:serviceTask id="task_auto_approve_loan" name="Auto Approve&#10;Loan">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="loan.auto-approve" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_risk_to_approve</bpmn:incoming>
+      <bpmn:outgoing>flow_approve_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════ MANUAL REVIEW (User Task — MEDIUM risk) ═══════════════════ -->
+    <bpmn:userTask id="task_manual_review_loan" name="Manual Loan&#10;Review">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition assignee="loan-officer" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_risk_to_review</bpmn:incoming>
+      <bpmn:outgoing>flow_review_to_end</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ═══════════════════ AUTO REJECT (Service Task — HIGH risk) ═══════════════════ -->
+    <bpmn:serviceTask id="task_auto_reject_loan" name="Auto Reject&#10;Loan">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="loan.auto-reject" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_gw_risk_to_reject</bpmn:incoming>
+      <bpmn:outgoing>flow_reject_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══════════════════ END EVENTS ═══════════════════ -->
+    <bpmn:endEvent id="end_application_invalid" name="Application&#10;Invalid">
+      <bpmn:incoming>flow_rejection_to_end_invalid</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_loan_approved" name="Loan&#10;Approved">
+      <bpmn:incoming>flow_approve_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_review_pending" name="Review&#10;Pending">
+      <bpmn:incoming>flow_review_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_loan_rejected" name="Loan&#10;Rejected">
+      <bpmn:incoming>flow_reject_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ═══════════════════ SEQUENCE FLOWS ═══════════════════ -->
+    <bpmn:sequenceFlow id="flow_start_to_validate" sourceRef="start_event_application_received" targetRef="task_validate_application" />
+    <bpmn:sequenceFlow id="flow_validate_to_gw_valid" sourceRef="task_validate_application" targetRef="gw_application_valid" />
+    <bpmn:sequenceFlow id="flow_gw_valid_to_evaluate" name="Valid" sourceRef="gw_application_valid" targetRef="task_evaluate_risk_rules">
+      <bpmn:conditionExpression>=applicationValid = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_gw_valid_to_rejection" name="Invalid" sourceRef="gw_application_valid" targetRef="task_send_rejection_notification">
+      <bpmn:conditionExpression>=applicationValid = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_rejection_to_end_invalid" sourceRef="task_send_rejection_notification" targetRef="end_application_invalid" />
+    <bpmn:sequenceFlow id="flow_evaluate_to_gw_risk" sourceRef="task_evaluate_risk_rules" targetRef="gw_risk_level" />
+    <bpmn:sequenceFlow id="flow_gw_risk_to_approve" name="LOW" sourceRef="gw_risk_level" targetRef="task_auto_approve_loan">
+      <bpmn:conditionExpression>=riskLevel = "LOW"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_gw_risk_to_review" name="MEDIUM" sourceRef="gw_risk_level" targetRef="task_manual_review_loan">
+      <bpmn:conditionExpression>=riskLevel = "MEDIUM"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_gw_risk_to_reject" name="HIGH" sourceRef="gw_risk_level" targetRef="task_auto_reject_loan">
+      <bpmn:conditionExpression>=riskLevel = "HIGH"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_approve_to_end" sourceRef="task_auto_approve_loan" targetRef="end_loan_approved" />
+    <bpmn:sequenceFlow id="flow_review_to_end" sourceRef="task_manual_review_loan" targetRef="end_review_pending" />
+    <bpmn:sequenceFlow id="flow_reject_to_end" sourceRef="task_auto_reject_loan" targetRef="end_loan_rejected" />
+
+  </bpmn:process>
+
+  <!-- ═══════════════════ DIAGRAM INTERCHANGE (DI) ═══════════════════ -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="loan-risk-assessment-process">
+
+      <!-- Shapes -->
+      <bpmndi:BPMNShape id="start_event_application_received_di" bpmnElement="start_event_application_received">
+        <dc:Bounds x="162" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="145" y="295" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_validate_application_di" bpmnElement="task_validate_application">
+        <dc:Bounds x="248" y="230" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="gw_application_valid_di" bpmnElement="gw_application_valid" isMarkerVisible="true">
+        <dc:Bounds x="418" y="245" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="402" y="302" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_send_rejection_notification_di" bpmnElement="task_send_rejection_notification">
+        <dc:Bounds x="388" y="380" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="end_application_invalid_di" bpmnElement="end_application_invalid">
+        <dc:Bounds x="551" y="402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="534" y="445" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_evaluate_risk_rules_di" bpmnElement="task_evaluate_risk_rules">
+        <dc:Bounds x="528" y="230" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="gw_risk_level_di" bpmnElement="gw_risk_level" isMarkerVisible="true">
+        <dc:Bounds x="698" y="245" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="700" y="302" width="46" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_auto_approve_loan_di" bpmnElement="task_auto_approve_loan">
+        <dc:Bounds x="808" y="90" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="end_loan_approved_di" bpmnElement="end_loan_approved">
+        <dc:Bounds x="978" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="961" y="155" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_manual_review_loan_di" bpmnElement="task_manual_review_loan">
+        <dc:Bounds x="808" y="230" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="end_review_pending_di" bpmnElement="end_review_pending">
+        <dc:Bounds x="978" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="961" y="295" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="task_auto_reject_loan_di" bpmnElement="task_auto_reject_loan">
+        <dc:Bounds x="808" y="380" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="end_loan_rejected_di" bpmnElement="end_loan_rejected">
+        <dc:Bounds x="978" y="402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="961" y="445" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Edges -->
+      <bpmndi:BPMNEdge id="flow_start_to_validate_di" bpmnElement="flow_start_to_validate">
+        <di:waypoint x="198" y="270" />
+        <di:waypoint x="248" y="270" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_validate_to_gw_valid_di" bpmnElement="flow_validate_to_gw_valid">
+        <di:waypoint x="358" y="270" />
+        <di:waypoint x="418" y="270" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_gw_valid_to_evaluate_di" bpmnElement="flow_gw_valid_to_evaluate">
+        <di:waypoint x="468" y="270" />
+        <di:waypoint x="528" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="481" y="252" width="26" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_gw_valid_to_rejection_di" bpmnElement="flow_gw_valid_to_rejection">
+        <di:waypoint x="443" y="295" />
+        <di:waypoint x="443" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="449" y="330" width="34" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_rejection_to_end_invalid_di" bpmnElement="flow_rejection_to_end_invalid">
+        <di:waypoint x="498" y="420" />
+        <di:waypoint x="551" y="420" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_evaluate_to_gw_risk_di" bpmnElement="flow_evaluate_to_gw_risk">
+        <di:waypoint x="638" y="270" />
+        <di:waypoint x="698" y="270" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_gw_risk_to_approve_di" bpmnElement="flow_gw_risk_to_approve">
+        <di:waypoint x="723" y="245" />
+        <di:waypoint x="723" y="130" />
+        <di:waypoint x="808" y="130" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="729" y="185" width="26" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_gw_risk_to_review_di" bpmnElement="flow_gw_risk_to_review">
+        <di:waypoint x="748" y="270" />
+        <di:waypoint x="808" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="751" y="252" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_gw_risk_to_reject_di" bpmnElement="flow_gw_risk_to_reject">
+        <di:waypoint x="723" y="295" />
+        <di:waypoint x="723" y="420" />
+        <di:waypoint x="808" y="420" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="729" y="350" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_approve_to_end_di" bpmnElement="flow_approve_to_end">
+        <di:waypoint x="918" y="130" />
+        <di:waypoint x="978" y="130" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_review_to_end_di" bpmnElement="flow_review_to_end">
+        <di:waypoint x="918" y="270" />
+        <di:waypoint x="978" y="270" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="flow_reject_to_end_di" bpmnElement="flow_reject_to_end">
+        <di:waypoint x="918" y="420" />
+        <di:waypoint x="978" y="420" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -59,10 +59,7 @@ public class ProcessLoopWorker {
                 done);
 
         var result = Map.of(
-                "item", currentItem,
-                "pattern", "loop",
-                "index", loopIndex,
-                "processedAt", System.currentTimeMillis());
+                "item", currentItem, "pattern", "loop", "index", loopIndex, "processedAt", System.currentTimeMillis());
 
         var accumulated = new ArrayList<>(loopResults != null ? loopResults : List.of());
         accumulated.add(result);
@@ -78,9 +75,6 @@ public class ProcessLoopWorker {
         vars.put("loopDone", done);
         vars.put("loopResults", accumulated);
 
-        client.newCompleteCommand(job.getKey())
-                .variables(vars)
-                .send()
-                .join();
+        client.newCompleteCommand(job.getKey()).variables(vars).send().join();
     }
 }

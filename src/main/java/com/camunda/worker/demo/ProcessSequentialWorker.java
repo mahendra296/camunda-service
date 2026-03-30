@@ -34,10 +34,7 @@ import org.springframework.stereotype.Component;
 public class ProcessSequentialWorker {
 
     @JobWorker(type = "demo.processSequential", autoComplete = false)
-    public void handle(
-            final JobClient client,
-            final ActivatedJob job,
-            @Variable String currentItem) {
+    public void handle(final JobClient client, final ActivatedJob job, @Variable String currentItem) {
 
         log.info(
                 "[DEMO][Sequential] type={} key={} | processing item='{}' (one at a time)",
@@ -45,10 +42,7 @@ public class ProcessSequentialWorker {
                 job.getKey(),
                 currentItem);
 
-        var result = Map.of(
-                "item", currentItem,
-                "pattern", "sequential",
-                "processedAt", System.currentTimeMillis());
+        var result = Map.of("item", currentItem, "pattern", "sequential", "processedAt", System.currentTimeMillis());
 
         log.info("[DEMO][Sequential] Completed item='{}' result={}", currentItem, result);
 

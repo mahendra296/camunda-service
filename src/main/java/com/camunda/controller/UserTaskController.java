@@ -90,6 +90,35 @@ public class UserTaskController {
     }
 
     /**
+     * Complete the "Manual Loan Review" user task (loan-officer).
+     *
+     * POST /api/tasks/{taskKey}/loan-review
+     *
+     * Body:
+     *   { "reviewDecision": "APPROVED", "reviewNote": "All checks passed" }
+     *
+     * reviewDecision values:
+     *   "APPROVED"  → loan approved by officer
+     *   "REJECTED"  → loan rejected by officer
+     *   "MORE_INFO" → officer requests additional information
+     */
+    @PostMapping("/{taskKey}/loan-review")
+    public ResponseEntity<Map<String, Object>> completeLoanReview(
+            @PathVariable long taskKey, @RequestBody Map<String, Object> body) {
+
+        var reviewDecision = (String) body.getOrDefault("reviewDecision", "REJECTED");
+        var reviewNote = (String) body.getOrDefault("reviewNote", "");
+
+        log.info("[API] POST /api/tasks/{}/loan-review decision={}", taskKey, reviewDecision);
+        userTaskService.completeLoanReview(taskKey, reviewDecision, reviewNote);
+
+        return ResponseEntity.ok(Map.of(
+                "status", "LOAN_REVIEW_COMPLETED",
+                "taskKey", taskKey,
+                "reviewDecision", reviewDecision));
+    }
+
+    /**
      * Complete the "Handle Delivery Issue" user task (support-agent).
      *
      * POST /api/tasks/{taskKey}/delivery-issue

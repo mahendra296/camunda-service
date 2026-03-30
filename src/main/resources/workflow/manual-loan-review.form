@@ -1,0 +1,118 @@
+{
+  "id": "manual-loan-review",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.45.0"
+  },
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.6.0",
+  "type": "default",
+  "schemaVersion": 16,
+  "components": [
+    {
+      "type": "group",
+      "id": "group_application_details",
+      "label": "Application Details",
+      "components": [
+        {
+          "type": "textfield",
+          "id": "field_applicationId",
+          "key": "applicationId",
+          "label": "Application ID",
+          "disabled": true,
+          "properties": {}
+        },
+        {
+          "type": "textfield",
+          "id": "field_applicantName",
+          "key": "applicantName",
+          "label": "Applicant Name",
+          "disabled": true,
+          "properties": {}
+        },
+        {
+          "type": "number",
+          "id": "field_applicantAge",
+          "key": "applicantAge",
+          "label": "Age",
+          "disabled": true,
+          "properties": {}
+        },
+        {
+          "type": "number",
+          "id": "field_monthlyIncome",
+          "key": "monthlyIncome",
+          "label": "Monthly Income",
+          "disabled": true,
+          "properties": {}
+        },
+        {
+          "type": "number",
+          "id": "field_requestedAmount",
+          "key": "requestedAmount",
+          "label": "Requested Amount",
+          "disabled": true,
+          "properties": {}
+        }
+      ],
+      "properties": {}
+    },
+    {
+      "type": "group",
+      "id": "group_risk_assessment",
+      "label": "Risk Assessment (from DMN)",
+      "components": [
+        {
+          "type": "textfield",
+          "id": "field_riskLevel",
+          "key": "riskLevel",
+          "label": "Risk Level",
+          "disabled": true,
+          "properties": {}
+        },
+        {
+          "type": "number",
+          "id": "field_riskScore",
+          "key": "riskScore",
+          "label": "Risk Score (0–100)",
+          "disabled": true,
+          "properties": {}
+        }
+      ],
+      "properties": {}
+    },
+    {
+      "type": "group",
+      "id": "group_review_decision",
+      "label": "Officer Decision",
+      "components": [
+        {
+          "type": "select",
+          "id": "field_reviewDecision",
+          "key": "reviewDecision",
+          "label": "Decision",
+          "values": [
+            { "label": "Approve", "value": "APPROVED" },
+            { "label": "Reject",  "value": "REJECTED" },
+            { "label": "Request More Information", "value": "MORE_INFO" }
+          ],
+          "validate": {
+            "required": true
+          },
+          "properties": {}
+        },
+        {
+          "type": "textarea",
+          "id": "field_reviewNote",
+          "key": "reviewNote",
+          "label": "Review Notes",
+          "validate": {
+            "required": true
+          },
+          "properties": {}
+        }
+      ],
+      "properties": {}
+    }
+  ]
+}
