@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_PaymentRefund" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:error id="Error_PaymentFailed" name="PaymentFailed" errorCode="PAYMENT_FAILED" />
+  <bpmn:error id="Error_InsufficientFunds" name="InsufficientFunds" errorCode="INSUFFICIENT_FUNDS" />
+  <bpmn:process id="payment-refund-process" name="Payment and Refund Process" isExecutable="true">
+    <bpmn:startEvent id="start_event_payment_received" name="Payment&#10;Received">
+      <bpmn:outgoing>flow_start_to_reserve</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="task_reserve_payment" name="Reserve Payment&#10;Amount">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.reserve" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_start_to_reserve</bpmn:incoming>
+      <bpmn:outgoing>flow_reserve_to_charge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_charge_payment" name="Charge Payment&#10;Gateway">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.charge" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_reserve_to_charge</bpmn:incoming>
+      <bpmn:outgoing>flow_charge_to_confirm</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_send_payment_confirmation" name="Send Payment&#10;Confirmation">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.send-confirmation" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_charge_to_confirm</bpmn:incoming>
+      <bpmn:outgoing>flow_confirm_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_payment_success" name="Payment&#10;Successful">
+      <bpmn:incoming>flow_confirm_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="boundary_reserve_compensation" attachedToRef="task_reserve_payment">
+      <bpmn:compensateEventDefinition id="CompDef_reserve" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="boundary_charge_compensation" attachedToRef="task_charge_payment">
+      <bpmn:compensateEventDefinition id="CompDef_charge" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="boundary_payment_failed_error" attachedToRef="task_charge_payment">
+      <bpmn:outgoing>flow_error_to_handle</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrDef_payment_failed" errorRef="Error_PaymentFailed" />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="task_handle_payment_error" name="Log Payment&#10;Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.handle-error" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_error_to_handle</bpmn:incoming>
+      <bpmn:outgoing>flow_handle_to_comp_throw</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="throw_compensation" name="Trigger&#10;Compensation">
+      <bpmn:incoming>flow_handle_to_comp_throw</bpmn:incoming>
+      <bpmn:outgoing>flow_comp_throw_to_notify</bpmn:outgoing>
+      <bpmn:compensateEventDefinition id="CompDef_throw" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="task_send_payment_failure" name="Send Payment&#10;Failure Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.send-failure-notification" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_comp_throw_to_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_notify_to_end_failed</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_payment_failed" name="Payment&#10;Failed">
+      <bpmn:incoming>flow_notify_to_end_failed</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="task_reverse_reservation" name="Reverse Payment&#10;Reservation" isForCompensation="true">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.reverse-reservation" retries="3" />
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_reverse_charge" name="Reverse Payment&#10;Charge" isForCompensation="true">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.reverse-charge" retries="3" />
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_start_to_reserve" sourceRef="start_event_payment_received" targetRef="task_reserve_payment" />
+    <bpmn:sequenceFlow id="flow_reserve_to_charge" sourceRef="task_reserve_payment" targetRef="task_charge_payment" />
+    <bpmn:sequenceFlow id="flow_charge_to_confirm" sourceRef="task_charge_payment" targetRef="task_send_payment_confirmation" />
+    <bpmn:sequenceFlow id="flow_confirm_to_end" sourceRef="task_send_payment_confirmation" targetRef="end_payment_success" />
+    <bpmn:sequenceFlow id="flow_error_to_handle" sourceRef="boundary_payment_failed_error" targetRef="task_handle_payment_error" />
+    <bpmn:sequenceFlow id="flow_handle_to_comp_throw" sourceRef="task_handle_payment_error" targetRef="throw_compensation" />
+    <bpmn:sequenceFlow id="flow_comp_throw_to_notify" sourceRef="throw_compensation" targetRef="task_send_payment_failure" />
+    <bpmn:sequenceFlow id="flow_notify_to_end_failed" sourceRef="task_send_payment_failure" targetRef="end_payment_failed" />
+    <bpmn:association id="assoc_reserve_comp" associationDirection="One" sourceRef="boundary_reserve_compensation" targetRef="task_reverse_reservation" />
+    <bpmn:association id="assoc_charge_comp" associationDirection="One" sourceRef="boundary_charge_compensation" targetRef="task_reverse_charge" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="payment-refund-process">
+      <bpmndi:BPMNShape id="Shape_start" bpmnElement="start_event_payment_received">
+        <dc:Bounds x="182" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="177" y="145" width="46" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_reserve" bpmnElement="task_reserve_payment">
+        <dc:Bounds x="280" y="80" width="160" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_charge" bpmnElement="task_charge_payment">
+        <dc:Bounds x="500" y="80" width="160" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_confirm" bpmnElement="task_send_payment_confirmation">
+        <dc:Bounds x="720" y="80" width="160" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_success" bpmnElement="end_payment_success">
+        <dc:Bounds x="952" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="943" y="145" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_handle_error" bpmnElement="task_handle_payment_error">
+        <dc:Bounds x="560" y="260" width="160" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_throw_comp" bpmnElement="throw_compensation">
+        <dc:Bounds x="792" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="775" y="325" width="71" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_send_failure" bpmnElement="task_send_payment_failure">
+        <dc:Bounds x="890" y="260" width="160" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_failed" bpmnElement="end_payment_failed">
+        <dc:Bounds x="1122" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1118" y="325" width="44" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_reverse_charge" bpmnElement="task_reverse_charge">
+        <dc:Bounds x="449" y="390" width="160" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_reverse_reservation" bpmnElement="task_reverse_reservation">
+        <dc:Bounds x="240" y="400" width="160" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_assoc_charge" bpmnElement="assoc_charge_comp">
+        <di:waypoint x="537" y="178" />
+        <di:waypoint x="537" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_assoc_reserve" bpmnElement="assoc_reserve_comp">
+        <di:waypoint x="340" y="178" />
+        <di:waypoint x="340" y="269" />
+        <di:waypoint x="300" y="269" />
+        <di:waypoint x="300" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Shape_boundary_error" bpmnElement="boundary_payment_failed_error">
+        <dc:Bounds x="622" y="142" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="596" y="263" width="88" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_boundary_charge_comp" bpmnElement="boundary_charge_compensation">
+        <dc:Bounds x="522" y="142" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="496" y="263" width="88" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_boundary_reserve_comp" bpmnElement="boundary_reserve_compensation">
+        <dc:Bounds x="322" y="142" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="296" y="263" width="88" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_start_to_reserve" bpmnElement="flow_start_to_reserve">
+        <di:waypoint x="218" y="120" />
+        <di:waypoint x="280" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_reserve_to_charge" bpmnElement="flow_reserve_to_charge">
+        <di:waypoint x="440" y="120" />
+        <di:waypoint x="500" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_charge_to_confirm" bpmnElement="flow_charge_to_confirm">
+        <di:waypoint x="660" y="120" />
+        <di:waypoint x="720" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_confirm_to_end" bpmnElement="flow_confirm_to_end">
+        <di:waypoint x="880" y="120" />
+        <di:waypoint x="952" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_error_to_handle" bpmnElement="flow_error_to_handle">
+        <di:waypoint x="640" y="178" />
+        <di:waypoint x="640" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_handle_to_throw" bpmnElement="flow_handle_to_comp_throw">
+        <di:waypoint x="720" y="300" />
+        <di:waypoint x="792" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_throw_to_notify" bpmnElement="flow_comp_throw_to_notify">
+        <di:waypoint x="828" y="300" />
+        <di:waypoint x="890" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_notify_to_end" bpmnElement="flow_notify_to_end_failed">
+        <di:waypoint x="1050" y="300" />
+        <di:waypoint x="1122" y="300" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
