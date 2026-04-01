@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_PaymentRefund" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.45.0">
+  <bpmn:error id="Error_PaymentFailed" name="PaymentFailed" errorCode="PAYMENT_FAILED" />
+  <bpmn:error id="Error_InsufficientFunds" name="InsufficientFunds" errorCode="INSUFFICIENT_FUNDS" />
+  <bpmn:process id="payment-refund-process" name="Payment and Refund Process" isExecutable="true">
+    <bpmn:startEvent id="start_event_payment_received" name="Payment&#10;Received">
+      <bpmn:outgoing>flow_start_to_reserve</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="task_reserve_payment" name="Reserve Payment&#10;Amount">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.reserve" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_start_to_reserve</bpmn:incoming>
+      <bpmn:outgoing>flow_reserve_to_charge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_charge_payment" name="Charge Payment&#10;Gateway">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.charge" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_reserve_to_charge</bpmn:incoming>
+      <bpmn:outgoing>flow_charge_to_inclusive</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="boundary_reserve_compensation" attachedToRef="task_reserve_payment">
+      <bpmn:compensateEventDefinition id="CompDef_reserve" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="boundary_charge_compensation" attachedToRef="task_charge_payment">
+      <bpmn:compensateEventDefinition id="CompDef_charge" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="boundary_payment_failed_error" attachedToRef="task_charge_payment">
+      <bpmn:outgoing>flow_error_to_complex</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrDef_payment_failed" errorRef="Error_PaymentFailed" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="boundary_charge_timeout" cancelActivity="false" attachedToRef="task_charge_payment">
+      <bpmn:outgoing>flow_timeout_to_handle</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_charge_timeout">
+        <bpmn:timeDuration>PT30S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="task_reverse_reservation" name="Reverse Payment&#10;Reservation" isForCompensation="true">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.reverse-reservation" retries="3" />
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_reverse_charge" name="Reverse Payment&#10;Charge" isForCompensation="true">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.reverse-charge" retries="3" />
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:inclusiveGateway id="gw_inclusive_notify" name="Notify&#10;Channels?">
+      <bpmn:incoming>flow_charge_to_inclusive</bpmn:incoming>
+      <bpmn:outgoing>flow_inclusive_to_email</bpmn:outgoing>
+      <bpmn:outgoing>flow_inclusive_to_sms</bpmn:outgoing>
+      <bpmn:outgoing>flow_inclusive_to_loyalty</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:serviceTask id="task_send_payment_confirmation" name="Send Email&#10;Confirmation">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.send-confirmation" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_inclusive_to_email</bpmn:incoming>
+      <bpmn:outgoing>flow_email_to_join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_send_sms_alert" name="Send SMS&#10;Alert">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.send-sms-alert" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_inclusive_to_sms</bpmn:incoming>
+      <bpmn:outgoing>flow_sms_to_join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_update_loyalty_points" name="Update Loyalty&#10;Points">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.update-loyalty-points" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_inclusive_to_loyalty</bpmn:incoming>
+      <bpmn:outgoing>flow_loyalty_to_join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:inclusiveGateway id="gw_inclusive_join" name="All Notifications&#10;Done?">
+      <bpmn:incoming>flow_email_to_join</bpmn:incoming>
+      <bpmn:incoming>flow_sms_to_join</bpmn:incoming>
+      <bpmn:incoming>flow_loyalty_to_join</bpmn:incoming>
+      <bpmn:outgoing>flow_join_to_end</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:endEvent id="end_payment_success" name="Payment&#10;Successful">
+      <bpmn:incoming>flow_join_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="task_handle_charge_timeout" name="Handle Charge&#10;Timeout">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.handle-timeout" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_timeout_to_handle</bpmn:incoming>
+      <bpmn:outgoing>flow_timeout_handle_to_complex</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:complexGateway id="gw_complex_join" name="Error / Timeout&#10;Join">
+      <bpmn:incoming>flow_error_to_complex</bpmn:incoming>
+      <bpmn:incoming>flow_timeout_handle_to_complex</bpmn:incoming>
+      <bpmn:outgoing>flow_complex_to_log</bpmn:outgoing>
+      <bpmn:activationCondition>=true</bpmn:activationCondition>
+    </bpmn:complexGateway>
+    <bpmn:serviceTask id="task_handle_payment_error" name="Log Payment&#10;Failure">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.handle-error" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_complex_to_log</bpmn:incoming>
+      <bpmn:outgoing>flow_handle_to_comp_throw</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="throw_compensation" name="Trigger&#10;Compensation">
+      <bpmn:incoming>flow_handle_to_comp_throw</bpmn:incoming>
+      <bpmn:outgoing>flow_comp_throw_to_notify</bpmn:outgoing>
+      <bpmn:compensateEventDefinition id="CompDef_throw" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="task_send_payment_failure" name="Send Payment&#10;Failure Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="payment.send-failure-notification" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_comp_throw_to_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_notify_to_end_failed</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_payment_failed" name="Payment&#10;Failed">
+      <bpmn:incoming>flow_notify_to_end_failed</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_start_to_reserve" sourceRef="start_event_payment_received" targetRef="task_reserve_payment" />
+    <bpmn:sequenceFlow id="flow_reserve_to_charge" sourceRef="task_reserve_payment" targetRef="task_charge_payment" />
+    <bpmn:sequenceFlow id="flow_charge_to_inclusive" sourceRef="task_charge_payment" targetRef="gw_inclusive_notify" />
+    <bpmn:sequenceFlow id="flow_inclusive_to_email" sourceRef="gw_inclusive_notify" targetRef="task_send_payment_confirmation">
+      <bpmn:conditionExpression>=true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_inclusive_to_sms" sourceRef="gw_inclusive_notify" targetRef="task_send_sms_alert">
+      <bpmn:conditionExpression>=amount &gt; 500</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_inclusive_to_loyalty" sourceRef="gw_inclusive_notify" targetRef="task_update_loyalty_points">
+      <bpmn:conditionExpression>=paymentMethod = "CARD"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_email_to_join" sourceRef="task_send_payment_confirmation" targetRef="gw_inclusive_join" />
+    <bpmn:sequenceFlow id="flow_sms_to_join" sourceRef="task_send_sms_alert" targetRef="gw_inclusive_join" />
+    <bpmn:sequenceFlow id="flow_loyalty_to_join" sourceRef="task_update_loyalty_points" targetRef="gw_inclusive_join" />
+    <bpmn:sequenceFlow id="flow_join_to_end" sourceRef="gw_inclusive_join" targetRef="end_payment_success" />
+    <bpmn:sequenceFlow id="flow_error_to_complex" sourceRef="boundary_payment_failed_error" targetRef="gw_complex_join" />
+    <bpmn:sequenceFlow id="flow_timeout_to_handle" sourceRef="boundary_charge_timeout" targetRef="task_handle_charge_timeout" />
+    <bpmn:sequenceFlow id="flow_timeout_handle_to_complex" sourceRef="task_handle_charge_timeout" targetRef="gw_complex_join" />
+    <bpmn:sequenceFlow id="flow_complex_to_log" sourceRef="gw_complex_join" targetRef="task_handle_payment_error" />
+    <bpmn:sequenceFlow id="flow_handle_to_comp_throw" sourceRef="task_handle_payment_error" targetRef="throw_compensation" />
+    <bpmn:sequenceFlow id="flow_comp_throw_to_notify" sourceRef="throw_compensation" targetRef="task_send_payment_failure" />
+    <bpmn:sequenceFlow id="flow_notify_to_end_failed" sourceRef="task_send_payment_failure" targetRef="end_payment_failed" />
+    <bpmn:association id="assoc_reserve_comp" associationDirection="One" sourceRef="boundary_reserve_compensation" targetRef="task_reverse_reservation" />
+    <bpmn:association id="assoc_charge_comp" associationDirection="One" sourceRef="boundary_charge_compensation" targetRef="task_reverse_charge" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="payment-refund-process">
+      <bpmndi:BPMNShape id="Shape_start" bpmnElement="start_event_payment_received">
+        <dc:Bounds x="182" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="177" y="225" width="46" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_reserve" bpmnElement="task_reserve_payment">
+        <dc:Bounds x="280" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_charge" bpmnElement="task_charge_payment">
+        <dc:Bounds x="500" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_reverse_reservation" bpmnElement="task_reverse_reservation">
+        <dc:Bounds x="280" y="490" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_reverse_charge" bpmnElement="task_reverse_charge">
+        <dc:Bounds x="500" y="490" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_gw_inclusive_notify" bpmnElement="gw_inclusive_notify" isMarkerVisible="true">
+        <dc:Bounds x="715" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="714" y="232" width="53" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_confirm" bpmnElement="task_send_payment_confirmation">
+        <dc:Bounds x="820" y="80" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_sms" bpmnElement="task_send_sms_alert">
+        <dc:Bounds x="820" y="160" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_loyalty" bpmnElement="task_update_loyalty_points">
+        <dc:Bounds x="820" y="240" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_gw_inclusive_join" bpmnElement="gw_inclusive_join" isMarkerVisible="true">
+        <dc:Bounds x="1045" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1032" y="232" width="76" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_success" bpmnElement="end_payment_success">
+        <dc:Bounds x="1162" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1153" y="225" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_handle_timeout" bpmnElement="task_handle_charge_timeout">
+        <dc:Bounds x="600" y="350" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_gw_complex_join" bpmnElement="gw_complex_join">
+        <dc:Bounds x="825" y="365" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="813" y="327.5" width="74" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_handle_error" bpmnElement="task_handle_payment_error">
+        <dc:Bounds x="940" y="350" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_throw_comp" bpmnElement="throw_compensation">
+        <dc:Bounds x="1162" y="372" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1145" y="415" width="71" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_send_failure" bpmnElement="task_send_payment_failure">
+        <dc:Bounds x="1260" y="350" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_end_failed" bpmnElement="end_payment_failed">
+        <dc:Bounds x="1492" y="372" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1488" y="415" width="44" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_boundary_timeout" bpmnElement="boundary_charge_timeout">
+        <dc:Bounds x="612" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="586" y="205" width="88" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_boundary_error" bpmnElement="boundary_payment_failed_error">
+        <dc:Bounds x="562" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="536" y="205" width="88" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_boundary_charge_comp" bpmnElement="boundary_charge_compensation">
+        <dc:Bounds x="512" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_boundary_reserve_comp" bpmnElement="boundary_reserve_compensation">
+        <dc:Bounds x="322" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_start_to_reserve" bpmnElement="flow_start_to_reserve">
+        <di:waypoint x="218" y="200" />
+        <di:waypoint x="280" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_reserve_to_charge" bpmnElement="flow_reserve_to_charge">
+        <di:waypoint x="440" y="200" />
+        <di:waypoint x="500" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_charge_to_inclusive" bpmnElement="flow_charge_to_inclusive">
+        <di:waypoint x="660" y="200" />
+        <di:waypoint x="715" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_inclusive_to_email" bpmnElement="flow_inclusive_to_email">
+        <di:waypoint x="740" y="175" />
+        <di:waypoint x="740" y="120" />
+        <di:waypoint x="820" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="744" y="82" width="28" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_inclusive_to_sms" bpmnElement="flow_inclusive_to_sms">
+        <di:waypoint x="765" y="200" />
+        <di:waypoint x="820" y="200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="778" y="122" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_inclusive_to_loyalty" bpmnElement="flow_inclusive_to_loyalty">
+        <di:waypoint x="740" y="225" />
+        <di:waypoint x="740" y="280" />
+        <di:waypoint x="820" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="744" y="188" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_email_to_join" bpmnElement="flow_email_to_join">
+        <di:waypoint x="980" y="120" />
+        <di:waypoint x="1070" y="120" />
+        <di:waypoint x="1070" y="175" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_sms_to_join" bpmnElement="flow_sms_to_join">
+        <di:waypoint x="980" y="200" />
+        <di:waypoint x="1045" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_loyalty_to_join" bpmnElement="flow_loyalty_to_join">
+        <di:waypoint x="980" y="280" />
+        <di:waypoint x="1070" y="280" />
+        <di:waypoint x="1070" y="225" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_join_to_end" bpmnElement="flow_join_to_end">
+        <di:waypoint x="1095" y="200" />
+        <di:waypoint x="1162" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_error_to_complex" bpmnElement="flow_error_to_complex">
+        <di:waypoint x="580" y="258" />
+        <di:waypoint x="580" y="470" />
+        <di:waypoint x="850" y="470" />
+        <di:waypoint x="850" y="415" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_timeout_to_handle" bpmnElement="flow_timeout_to_handle">
+        <di:waypoint x="630" y="258" />
+        <di:waypoint x="630" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_timeout_handle_to_complex" bpmnElement="flow_timeout_handle_to_complex">
+        <di:waypoint x="760" y="390" />
+        <di:waypoint x="825" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_complex_to_log" bpmnElement="flow_complex_to_log">
+        <di:waypoint x="875" y="390" />
+        <di:waypoint x="940" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_handle_to_throw" bpmnElement="flow_handle_to_comp_throw">
+        <di:waypoint x="1100" y="390" />
+        <di:waypoint x="1162" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_throw_to_notify" bpmnElement="flow_comp_throw_to_notify">
+        <di:waypoint x="1198" y="390" />
+        <di:waypoint x="1260" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_notify_to_end" bpmnElement="flow_notify_to_end_failed">
+        <di:waypoint x="1420" y="390" />
+        <di:waypoint x="1492" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_assoc_reserve" bpmnElement="assoc_reserve_comp">
+        <di:waypoint x="340" y="258" />
+        <di:waypoint x="340" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_assoc_charge" bpmnElement="assoc_charge_comp">
+        <di:waypoint x="530" y="258" />
+        <di:waypoint x="530" y="490" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

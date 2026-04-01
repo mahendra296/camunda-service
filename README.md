@@ -1,6 +1,6 @@
-# Camunda Service — Order Management, Airtel Loan, Loan Risk Assessment, Loan Application Form & Multi-Instance Demo
+# Camunda Service — Order Management, Airtel Loan, Loan Risk Assessment, Loan Application Form, Multi-Instance Demo & Payment/Refund
 
-A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle**, the **Airtel loan origination** flow, a **loan risk assessment** process featuring a Business Rule Task, a **loan application form** process demonstrating Camunda Form components, and a **multi-instance demo** that explains loop, sequential, and parallel iteration patterns.
+A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle**, the **Airtel loan origination** flow, a **loan risk assessment** process featuring a Business Rule Task, a **loan application form** process demonstrating Camunda Form components, a **multi-instance demo** that explains loop, sequential, and parallel iteration patterns, and a **payment & refund process** demonstrating compensation events and error boundary events.
 
 ---
 
@@ -16,6 +16,7 @@ A Spring Boot + Camunda 8 service that orchestrates multiple business processes 
    - [Loan Risk Assessment API](#loan-risk-assessment-api)
    - [Loan Application Form API](#loan-application-form-api)
    - [Multi-Instance Demo API](#multi-instance-demo-api)
+   - [Payment & Refund API](#payment--refund-api)
 
 ---
 
@@ -85,6 +86,14 @@ src/main/java/com/camunda/
 │   ├── HandleSlaBreachWorker.java          ← order.handle-sla-breach
 │   ├── ReshipOrderWorker.java              ← order.reship
 │   ├── ProcessRefundWorker.java            ← order.process-refund
+│   ├── payment/
+│   │   ├── ReservePaymentWorker.java            ← payment.reserve
+│   │   ├── ChargePaymentWorker.java             ← payment.charge (throws PAYMENT_FAILED BPMN error)
+│   │   ├── SendPaymentConfirmationWorker.java   ← payment.send-confirmation
+│   │   ├── HandlePaymentErrorWorker.java        ← payment.handle-error (error boundary path)
+│   │   ├── SendPaymentFailureNotificationWorker.java ← payment.send-failure-notification
+│   │   ├── ReversePaymentReservationWorker.java ← payment.reverse-reservation (compensation handler)
+│   │   └── ReversePaymentChargeWorker.java      ← payment.reverse-charge (compensation handler)
 │   ├── form/
 │   │   ├── ValidateApplicationDataWorker.java  ← form.validate-application-data
 │   │   ├── SubmitForReviewWorker.java           ← form.submit-for-review
@@ -106,6 +115,8 @@ src/main/java/com/camunda/
 │   ├── OrderItemDto.java
 │   ├── MessageRequest.java
 │   ├── StartOrderResponse.java
+│   ├── PaymentRequest.java
+│   ├── PaymentResponse.java
 │   ├── AirtelLoanRequest.java
 │   ├── AirtelLoanResponse.java
 │   ├── AirtelKycCallbackRequest.java
@@ -124,7 +135,8 @@ src/main/resources/workflow/
 ├── loan-risk-rules.dmn
 ├── loan-application-form-process.bpmn
 ├── loan-application-form.form
-└── multi-instance-demo-process.bpmn
+├── multi-instance-demo-process.bpmn
+└── payment-refund-process.bpmn         ← Compensation + Error event demo
 ```
 
 ---
@@ -437,11 +449,25 @@ src/main/resources/workflow/
 | `cbs.processLoanDisbursement` | `ProcessLoanDisbursementWorker` | `disbursementRef`, `disbursedAmount`, `disbursementStatus` |
 | `capbpm.notifyLoanApproved` | `NotifyLoanApprovedWorker` | — |
 
+### Payment & Refund Workers (`worker/payment/`)
+
+> Process: `payment-refund-process` · Demonstrates **compensation events** and **error boundary events**.
+
+| Job Type | Worker | Boundary Type | Key Output Variables |
+|---|---|---|---|
+| `payment.reserve` | `ReservePaymentWorker` | Compensation boundary → `ReversePaymentReservationWorker` | `reservationId`, `reservedAmount`, `reservedAt` |
+| `payment.charge` | `ChargePaymentWorker` | Error boundary (PAYMENT_FAILED) + Compensation boundary → `ReversePaymentChargeWorker` | `transactionId`, `chargedAmount`, `chargeStatus`, `chargedAt` — throws `PAYMENT_FAILED` when `amount > 10000` or `paymentMethod = INVALID` |
+| `payment.send-confirmation` | `SendPaymentConfirmationWorker` | — | `confirmationSent`, `confirmationSentAt` |
+| `payment.handle-error` | `HandlePaymentErrorWorker` | — (error path only) | `errorLoggedAt`, `paymentFailureReason` |
+| `payment.send-failure-notification` | `SendPaymentFailureNotificationWorker` | — (error path only) | `failureNotificationSent`, `failureNotificationSentAt` |
+| `payment.reverse-reservation` | `ReversePaymentReservationWorker` | Compensation handler (`isForCompensation=true`) | `reservationReversed`, `reservationReversedAt` |
+| `payment.reverse-charge` | `ReversePaymentChargeWorker` | Compensation handler (`isForCompensation=true`) | `chargeReversed`, `chargeReversedAt` |
+
 ---
 
 ## REST API Endpoints
 
-> **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}` · `{{msisdn}}` · `{{applicationId}}`
+> **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}` · `{{msisdn}}` · `{{applicationId}}` · `{{paymentId}}`
 
 > No extra variables are needed for the Multi-Instance Demo — the endpoint takes no body.
 
@@ -1150,4 +1176,63 @@ curl -X POST {{baseURL}}/api/demo/start
     [2] {item=Item-A, pattern=parallel, processedAt=...}
     [3] {item=Item-C, pattern=parallel, processedAt=...}
 ══════════════════════════════════════════════════════
+```
+
+---
+
+## Payment & Refund API
+
+> Starts `payment-refund-process`. Demonstrates **compensation boundary events** and **error boundary events** in a payment flow.
+
+**Process variables:** `{{paymentId}}` e.g. `PAY-001`
+
+### Start Payment — Happy Path (amount ≤ 10,000)
+
+> Triggers: Reserve → Charge → Confirmation → `end_payment_success`.
+
+```bash
+curl -X POST {{baseURL}}/api/payments/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paymentId": "{{paymentId}}",
+    "customerId": "CUST-001",
+    "amount": 500.00,
+    "currency": "USD",
+    "paymentMethod": "CARD"
+  }'
+```
+
+### Start Payment — Trigger PAYMENT_FAILED Error Boundary (amount > 10,000)
+
+> `ChargePaymentWorker` throws `PAYMENT_FAILED` BPMN error → `boundary_payment_failed_error` fires →
+> `task_handle_payment_error` → `throw_compensation` (triggers `ReversePaymentReservationWorker`) →
+> `task_send_payment_failure` → `end_payment_failed`.
+
+```bash
+curl -X POST {{baseURL}}/api/payments/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paymentId": "{{paymentId}}",
+    "customerId": "CUST-001",
+    "amount": 99999.00,
+    "currency": "USD",
+    "paymentMethod": "CARD"
+  }'
+```
+
+### Start Payment — Trigger PAYMENT_FAILED via Invalid Method
+
+> `ChargePaymentWorker` throws `PAYMENT_FAILED` when `paymentMethod = "INVALID"`.
+> Same error path as above — compensation undoes the reservation, failure notification sent.
+
+```bash
+curl -X POST {{baseURL}}/api/payments/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paymentId": "{{paymentId}}",
+    "customerId": "CUST-001",
+    "amount": 250.00,
+    "currency": "USD",
+    "paymentMethod": "INVALID"
+  }'
 ```
