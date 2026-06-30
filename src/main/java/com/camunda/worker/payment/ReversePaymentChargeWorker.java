@@ -64,9 +64,7 @@ public class ReversePaymentChargeWorker {
                     chargedAmount);
 
             client.newCompleteCommand(job.getKey())
-                    .variables(Map.of(
-                            "chargeReversed", true,
-                            "chargeReversedAt", System.currentTimeMillis()))
+                    .variables(Map.of("chargeReversed", true, "chargeReversedAt", System.currentTimeMillis()))
                     .send()
                     .join();
 

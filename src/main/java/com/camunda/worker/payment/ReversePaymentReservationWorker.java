@@ -61,15 +61,12 @@ public class ReversePaymentReservationWorker {
                     reservedAmount);
 
             client.newCompleteCommand(job.getKey())
-                    .variables(Map.of(
-                            "reservationReversed", true,
-                            "reservationReversedAt", System.currentTimeMillis()))
+                    .variables(Map.of("reservationReversed", true, "reservationReversedAt", System.currentTimeMillis()))
                     .send()
                     .join();
 
         } catch (Exception ex) {
-            log.error(
-                    "[ReversePaymentReservation] Error reversing reservation paymentId={}", paymentId, ex);
+            log.error("[ReversePaymentReservation] Error reversing reservation paymentId={}", paymentId, ex);
             client.newFailCommand(job.getKey())
                     .retries(job.getRetries() - 1)
                     .errorMessage("Failed to reverse payment reservation: " + ex.getMessage())

@@ -33,8 +33,7 @@ public class PaymentRefundController {
      * <p>POST /api/payments/start
      */
     @PostMapping("/start")
-    public ResponseEntity<PaymentResponse> startPayment(
-            @Valid @RequestBody PaymentRequest request) {
+    public ResponseEntity<PaymentResponse> startPayment(@Valid @RequestBody PaymentRequest request) {
         log.info("[API] POST /api/payments/start paymentId={}", request.getPaymentId());
         var response = paymentRefundService.startPaymentProcess(request);
         return ResponseEntity.ok(response);

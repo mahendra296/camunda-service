@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="001-create-risk-config" author="mahendra">
+        <createTable tableName="risk_config">
+            <column name="config_key" type="VARCHAR(100)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="config_value" type="NUMERIC(10,4)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="VARCHAR(255)"/>
+        </createTable>
+
+        <!-- Credit Score Thresholds -->
+        <insert tableName="risk_config">
+            <column name="config_key" value="csExcellentMin"/>
+            <column name="config_value" value="750"/>
+            <column name="description" value="Minimum credit score for Excellent band (rules 1 and 2)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="csExcellentMax"/>
+            <column name="config_value" value="850"/>
+            <column name="description" value="Maximum credit score for Excellent band (rules 1 and 2)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="csVeryGoodMin"/>
+            <column name="config_value" value="700"/>
+            <column name="description" value="Minimum credit score for Very Good band (rule 3)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="csVeryGoodMax"/>
+            <column name="config_value" value="749"/>
+            <column name="description" value="Maximum credit score for Very Good / Good band (rules 3 and 4)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="csGoodMin"/>
+            <column name="config_value" value="650"/>
+            <column name="description" value="Minimum credit score for Good band (rule 4)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="csAcceptableMin"/>
+            <column name="config_value" value="600"/>
+            <column name="description" value="Minimum credit score for Acceptable band (rules 5 and 6)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="csFairMin"/>
+            <column name="config_value" value="500"/>
+            <column name="description" value="Minimum credit score for Fair band (rule 7)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="csFairMax"/>
+            <column name="config_value" value="599"/>
+            <column name="description" value="Maximum credit score for Fair band (rule 7)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="csPoorMax"/>
+            <column name="config_value" value="500"/>
+            <column name="description" value="Credit score threshold below which applicant is Poor risk (rule 8)"/>
+        </insert>
+
+        <!-- Debt-to-Income Ratio Thresholds -->
+        <insert tableName="risk_config">
+            <column name="config_key" value="dtiVeryLow"/>
+            <column name="config_value" value="0.25"/>
+            <column name="description" value="Very Low DTI upper bound (rule 1: Excellent + very low DTI = LOW risk)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="dtiLow"/>
+            <column name="config_value" value="0.30"/>
+            <column name="description" value="Low DTI upper bound (rule 3: Very Good + low DTI = LOW risk)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="dtiBorderline"/>
+            <column name="config_value" value="0.35"/>
+            <column name="description" value="Borderline DTI upper bound (rules 7 and 8)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="dtiMedium"/>
+            <column name="config_value" value="0.40"/>
+            <column name="description" value="Medium DTI upper bound (rules 2 and 4)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="dtiHigh"/>
+            <column name="config_value" value="0.50"/>
+            <column name="description" value="High DTI upper bound (rules 5 and 6)"/>
+        </insert>
+
+        <!-- Applicant Age Thresholds -->
+        <insert tableName="risk_config">
+            <column name="config_key" value="ageStandard"/>
+            <column name="config_value" value="25"/>
+            <column name="description" value="Standard minimum age threshold (rules 1, 3, 5)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="ageMature"/>
+            <column name="config_value" value="30"/>
+            <column name="description" value="Mature minimum age threshold (rule 4)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="ageYoungMin"/>
+            <column name="config_value" value="18"/>
+            <column name="description" value="Young applicant band lower bound (rule 6)"/>
+        </insert>
+        <insert tableName="risk_config">
+            <column name="config_key" value="ageYoungMax"/>
+            <column name="config_value" value="24"/>
+            <column name="description" value="Young applicant band upper bound (rule 6)"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

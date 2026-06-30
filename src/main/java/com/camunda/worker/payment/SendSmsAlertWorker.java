@@ -51,9 +51,7 @@ public class SendSmsAlertWorker {
                     amount);
 
             client.newCompleteCommand(job.getKey())
-                    .variables(Map.of(
-                            "smsAlertSent", true,
-                            "smsAlertSentAt", System.currentTimeMillis()))
+                    .variables(Map.of("smsAlertSent", true, "smsAlertSentAt", System.currentTimeMillis()))
                     .send()
                     .join();
 

@@ -65,8 +65,10 @@ public class HandleChargeTimeoutWorker {
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "timeoutDetectedAt", System.currentTimeMillis(),
-                            "paymentFailureReason", "CHARGE_TIMEOUT — gateway did not respond within 30s"))
+                            "timeoutDetectedAt",
+                            System.currentTimeMillis(),
+                            "paymentFailureReason",
+                            "CHARGE_TIMEOUT — gateway did not respond within 30s"))
                     .send()
                     .join();
 

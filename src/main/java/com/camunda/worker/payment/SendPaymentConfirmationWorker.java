@@ -52,9 +52,7 @@ public class SendPaymentConfirmationWorker {
                     currency);
 
             client.newCompleteCommand(job.getKey())
-                    .variables(Map.of(
-                            "confirmationSent", true,
-                            "confirmationSentAt", System.currentTimeMillis()))
+                    .variables(Map.of("confirmationSent", true, "confirmationSentAt", System.currentTimeMillis()))
                     .send()
                     .join();
 

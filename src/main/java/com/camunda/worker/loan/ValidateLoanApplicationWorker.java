@@ -1,29 +1,54 @@
 package com.camunda.worker.loan;
 
+import com.camunda.model.RiskConfig;
+import com.camunda.model.RiskConfigRepository;
 import io.camunda.client.annotation.JobWorker;
 import io.camunda.client.annotation.Variable;
 import io.camunda.client.api.response.ActivatedJob;
 import io.camunda.client.api.worker.JobClient;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * Validates a loan application before risk evaluation.
+ * Validates a loan application before risk evaluation and loads dynamic risk thresholds from the
+ * {@code risk_config} table so the downstream DMN can reference them by name.
  *
  * <p>Output variables:
  *
  * <ul>
  *   <li>{@code applicationValid} — true if all fields pass validation
  *   <li>{@code validationError} — human-readable reason when invalid (null otherwise)
+ *   <li>All {@code risk_config} keys as individual process variables (e.g. {@code csExcellentMin},
+ *       {@code dtiVeryLow}, {@code ageStandard}, …)
  * </ul>
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
+@RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class ValidateLoanApplicationWorker {
+
+    private static final Set<String> INTEGER_KEYS = Set.of(
+            "csExcellentMin",
+            "csExcellentMax",
+            "csVeryGoodMin",
+            "csVeryGoodMax",
+            "csGoodMin",
+            "csAcceptableMin",
+            "csFairMin",
+            "csFairMax",
+            "csPoorMax",
+            "ageStandard",
+            "ageMature",
+            "ageYoungMin",
+            "ageYoungMax");
+
+    private final RiskConfigRepository riskConfigRepository;
 
     @JobWorker(type = "loan.validate-application", autoComplete = false)
     public void handle(
@@ -55,6 +80,17 @@ public class ValidateLoanApplicationWorker {
             vars.put("applicationValid", valid);
             vars.put("validationError", validationError);
             vars.put("validatedAt", System.currentTimeMillis());
+
+            // Load dynamic risk thresholds so the DMN can reference them by variable name
+            var thresholds = riskConfigRepository.findAll().stream()
+                    .collect(Collectors.toMap(
+                            RiskConfig::getConfigKey,
+                            config -> INTEGER_KEYS.contains(config.getConfigKey())
+                                    ? (Object) config.getConfigValue().intValue()
+                                    : config.getConfigValue().doubleValue()));
+
+            log.info("[Loan][ValidateApplication] Loaded {} risk threshold entries", thresholds.size());
+            vars.putAll(thresholds);
 
             client.newCompleteCommand(job.getKey()).variables(vars).send().join();
 

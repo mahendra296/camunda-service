@@ -43,10 +43,7 @@ public class SendPaymentFailureNotificationWorker {
             @Variable(optional = true) String paymentFailureReason) {
 
         log.info(
-                "[SendPaymentFailureNotification] type={} key={} paymentId={}",
-                job.getType(),
-                job.getKey(),
-                paymentId);
+                "[SendPaymentFailureNotification] type={} key={} paymentId={}", job.getType(), job.getKey(), paymentId);
 
         try {
             log.info(
@@ -59,8 +56,7 @@ public class SendPaymentFailureNotificationWorker {
             // Simulate sending SMS / email / push notification
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "failureNotificationSent", true,
-                            "failureNotificationSentAt", System.currentTimeMillis()))
+                            "failureNotificationSent", true, "failureNotificationSentAt", System.currentTimeMillis()))
                     .send()
                     .join();
 

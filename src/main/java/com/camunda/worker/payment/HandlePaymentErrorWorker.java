@@ -62,9 +62,8 @@ public class HandlePaymentErrorWorker {
             // Persist to audit log / alert system in a real implementation
 
             client.newCompleteCommand(job.getKey())
-                    .variables(Map.of(
-                            "errorLoggedAt", System.currentTimeMillis(),
-                            "paymentFailureReason", failureReason))
+                    .variables(
+                            Map.of("errorLoggedAt", System.currentTimeMillis(), "paymentFailureReason", failureReason))
                     .send()
                     .join();
 

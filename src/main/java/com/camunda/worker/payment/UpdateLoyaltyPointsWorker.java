@@ -53,8 +53,7 @@ public class UpdateLoyaltyPointsWorker {
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "loyaltyPointsAwarded", pointsAwarded,
-                            "loyaltyUpdatedAt", System.currentTimeMillis()))
+                            "loyaltyPointsAwarded", pointsAwarded, "loyaltyUpdatedAt", System.currentTimeMillis()))
                     .send()
                     .join();
 

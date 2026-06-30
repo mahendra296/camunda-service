@@ -4,3 +4,7 @@ DATASOURCE_DRIVER_CLASS: org.postgresql.Driver
 DATASOURCE_USERNAME: postgres
 DATASOURCE_PASSWORD: root
 
+spring:
+  liquibase:
+    enabled: true
+

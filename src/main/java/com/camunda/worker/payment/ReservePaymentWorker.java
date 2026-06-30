@@ -50,7 +50,8 @@ public class ReservePaymentWorker {
                 currency);
 
         try {
-            var reservationId = "RESV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            var reservationId =
+                    "RESV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
             log.info("[ReservePayment] paymentId={} reservationId={} reserved", paymentId, reservationId);
 
             client.newCompleteCommand(job.getKey())

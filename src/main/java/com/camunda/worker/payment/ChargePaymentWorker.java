@@ -74,8 +74,7 @@ public class ChargePaymentWorker {
                         amount);
                 client.newThrowErrorCommand(job.getKey())
                         .errorCode("PAYMENT_FAILED")
-                        .errorMessage(
-                                "Insufficient funds for paymentId=" + paymentId + " amount=" + amount)
+                        .errorMessage("Insufficient funds for paymentId=" + paymentId + " amount=" + amount)
                         .send()
                         .join();
                 return;
@@ -83,9 +82,7 @@ public class ChargePaymentWorker {
 
             // ── Simulate INVALID_PAYMENT_METHOD ─────────────────────────────────
             if ("INVALID".equalsIgnoreCase(paymentMethod)) {
-                log.warn(
-                        "[ChargePayment] paymentId={} paymentMethod=INVALID — throwing PAYMENT_FAILED",
-                        paymentId);
+                log.warn("[ChargePayment] paymentId={} paymentMethod=INVALID — throwing PAYMENT_FAILED", paymentId);
                 client.newThrowErrorCommand(job.getKey())
                         .errorCode("PAYMENT_FAILED")
                         .errorMessage("Invalid payment method for paymentId=" + paymentId)
@@ -97,15 +94,18 @@ public class ChargePaymentWorker {
             // ── Happy path ───────────────────────────────────────────────────────
             var transactionId =
                     "TXN-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase();
-            log.info(
-                    "[ChargePayment] paymentId={} SUCCESS transactionId={}", paymentId, transactionId);
+            log.info("[ChargePayment] paymentId={} SUCCESS transactionId={}", paymentId, transactionId);
 
             client.newCompleteCommand(job.getKey())
                     .variables(Map.of(
-                            "transactionId", transactionId,
-                            "chargedAmount", amount,
-                            "chargeStatus", "SUCCESS",
-                            "chargedAt", System.currentTimeMillis()))
+                            "transactionId",
+                            transactionId,
+                            "chargedAmount",
+                            amount,
+                            "chargeStatus",
+                            "SUCCESS",
+                            "chargedAt",
+                            System.currentTimeMillis()))
                     .send()
                     .join();
 
