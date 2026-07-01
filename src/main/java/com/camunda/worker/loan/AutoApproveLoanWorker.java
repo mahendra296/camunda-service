@@ -34,9 +34,12 @@ public class AutoApproveLoanWorker {
             ActivatedJob job,
             @Variable String applicationId,
             @Variable String applicantName,
-            @Variable double requestedAmount,
-            @Variable String riskLevel,
-            @Variable int riskScore) {
+            @Variable Map<String, Object> validateApplicationResponse,
+            @Variable Map<String, Object> riskDecision) {
+
+        var requestedAmount = ((Number) validateApplicationResponse.get("requestedAmount")).doubleValue();
+        var riskLevel = (String) riskDecision.get("riskLevel");
+        var riskScore = ((Number) riskDecision.get("riskScore")).intValue();
 
         log.info(
                 "[Loan][AutoApprove] type={} key={} applicationId={} riskLevel={} riskScore={}",

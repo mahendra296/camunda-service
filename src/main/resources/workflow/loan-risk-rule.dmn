@@ -4,17 +4,17 @@
     <decisionTable id="DecisionTable_0i5oukm" hitPolicy="FIRST">
       <input id="input_credit_score" label="Credit Score">
         <inputExpression id="inputExpression_credit_score" typeRef="integer">
-          <text>creditScore</text>
+          <text>riskRuleRequest.creditScore</text>
         </inputExpression>
       </input>
       <input id="input_dti_ratio" label="Debt-to-Income Ratio (annual)">
         <inputExpression id="inputExpression_dti" typeRef="double">
-          <text>requestedAmount / (monthlyIncome * 12)</text>
+          <text>riskRuleRequest.requestedAmount / (riskRuleRequest.monthlyIncome * 12)</text>
         </inputExpression>
       </input>
       <input id="input_age" label="Applicant Age">
         <inputExpression id="inputExpression_age" typeRef="integer">
-          <text>applicantAge</text>
+          <text>riskRuleRequest.applicantAge</text>
         </inputExpression>
       </input>
       <output id="output_risk_level" label="Risk Level" name="riskLevel" typeRef="string" />
@@ -22,13 +22,13 @@
       <rule id="rule_1">
         <description>Excellent credit + very low DTI + age &gt;= ageStandard → LOW</description>
         <inputEntry id="ie_1_cs">
-          <text>[csExcellentMin..csExcellentMax]</text>
+          <text>[riskRuleRequest.riskConfig.csExcellentMin..riskRuleRequest.riskConfig.csExcellentMax]</text>
         </inputEntry>
         <inputEntry id="ie_1_dti">
-          <text>[0..dtiVeryLow]</text>
+          <text>[0..riskRuleRequest.riskConfig.dtiVeryLow]</text>
         </inputEntry>
         <inputEntry id="ie_1_age">
-          <text>&gt;= ageStandard</text>
+          <text>&gt;= riskRuleRequest.riskConfig.ageStandard</text>
         </inputEntry>
         <outputEntry id="oe_1_level">
           <text>"LOW"</text>
@@ -38,12 +38,12 @@
         </outputEntry>
       </rule>
       <rule id="rule_2">
-        <description>Excellent credit + low DTI → LOW regardless of age</description>
+        <description>Excellent credit + medium DTI → LOW regardless of age</description>
         <inputEntry id="ie_2_cs">
-          <text>[csExcellentMin..csExcellentMax]</text>
+          <text>[riskRuleRequest.riskConfig.csExcellentMin..riskRuleRequest.riskConfig.csExcellentMax]</text>
         </inputEntry>
         <inputEntry id="ie_2_dti">
-          <text>[0..dtiMedium]</text>
+          <text>[0..riskRuleRequest.riskConfig.dtiMedium]</text>
         </inputEntry>
         <inputEntry id="ie_2_age">
           <text></text>
@@ -58,13 +58,13 @@
       <rule id="rule_3">
         <description>Very good credit + low DTI + age &gt;= ageStandard → LOW</description>
         <inputEntry id="ie_3_cs">
-          <text>[csVeryGoodMin..csVeryGoodMax]</text>
+          <text>[riskRuleRequest.riskConfig.csVeryGoodMin..riskRuleRequest.riskConfig.csVeryGoodMax]</text>
         </inputEntry>
         <inputEntry id="ie_3_dti">
-          <text>[0..dtiLow]</text>
+          <text>[0..riskRuleRequest.riskConfig.dtiLow]</text>
         </inputEntry>
         <inputEntry id="ie_3_age">
-          <text>&gt;= ageStandard</text>
+          <text>&gt;= riskRuleRequest.riskConfig.ageStandard</text>
         </inputEntry>
         <outputEntry id="oe_3_level">
           <text>"LOW"</text>
@@ -76,13 +76,13 @@
       <rule id="rule_4">
         <description>Good credit + medium DTI + age &gt;= ageMature → MEDIUM</description>
         <inputEntry id="ie_4_cs">
-          <text>[csGoodMin..csVeryGoodMax]</text>
+          <text>[riskRuleRequest.riskConfig.csGoodMin..riskRuleRequest.riskConfig.csVeryGoodMax]</text>
         </inputEntry>
         <inputEntry id="ie_4_dti">
-          <text>[0..dtiMedium]</text>
+          <text>[0..riskRuleRequest.riskConfig.dtiMedium]</text>
         </inputEntry>
         <inputEntry id="ie_4_age">
-          <text>&gt;= ageMature</text>
+          <text>&gt;= riskRuleRequest.riskConfig.ageMature</text>
         </inputEntry>
         <outputEntry id="oe_4_level">
           <text>"MEDIUM"</text>
@@ -92,15 +92,15 @@
         </outputEntry>
       </rule>
       <rule id="rule_5">
-        <description>Acceptable credit + medium DTI + age &gt;= ageStandard → MEDIUM</description>
+        <description>Acceptable credit + high DTI + age &gt;= ageStandard → MEDIUM</description>
         <inputEntry id="ie_5_cs">
-          <text>&gt;= csAcceptableMin</text>
+          <text>&gt;= riskRuleRequest.riskConfig.csAcceptableMin</text>
         </inputEntry>
         <inputEntry id="ie_5_dti">
-          <text>[0..dtiHigh]</text>
+          <text>[0..riskRuleRequest.riskConfig.dtiHigh]</text>
         </inputEntry>
         <inputEntry id="ie_5_age">
-          <text>&gt;= ageStandard</text>
+          <text>&gt;= riskRuleRequest.riskConfig.ageStandard</text>
         </inputEntry>
         <outputEntry id="oe_5_level">
           <text>"MEDIUM"</text>
@@ -110,15 +110,15 @@
         </outputEntry>
       </rule>
       <rule id="rule_6">
-        <description>Acceptable credit + medium DTI + young applicant → MEDIUM (elevated)</description>
+        <description>Acceptable credit + high DTI + young applicant → MEDIUM (elevated)</description>
         <inputEntry id="ie_6_cs">
-          <text>&gt;= csAcceptableMin</text>
+          <text>&gt;= riskRuleRequest.riskConfig.csAcceptableMin</text>
         </inputEntry>
         <inputEntry id="ie_6_dti">
-          <text>[0..dtiHigh]</text>
+          <text>[0..riskRuleRequest.riskConfig.dtiHigh]</text>
         </inputEntry>
         <inputEntry id="ie_6_age">
-          <text>[ageYoungMin..ageYoungMax]</text>
+          <text>[riskRuleRequest.riskConfig.ageYoungMin..riskRuleRequest.riskConfig.ageYoungMax]</text>
         </inputEntry>
         <outputEntry id="oe_6_level">
           <text>"MEDIUM"</text>
@@ -130,10 +130,10 @@
       <rule id="rule_7">
         <description>Fair credit + borderline DTI → MEDIUM (borderline)</description>
         <inputEntry id="ie_7_cs">
-          <text>[csFairMin..csFairMax]</text>
+          <text>[riskRuleRequest.riskConfig.csFairMin..riskRuleRequest.riskConfig.csFairMax]</text>
         </inputEntry>
         <inputEntry id="ie_7_dti">
-          <text>[0..dtiBorderline]</text>
+          <text>[0..riskRuleRequest.riskConfig.dtiBorderline]</text>
         </inputEntry>
         <inputEntry id="ie_7_age">
           <text></text>
@@ -146,12 +146,12 @@
         </outputEntry>
       </rule>
       <rule id="rule_8">
-        <description>Poor credit or excessive DTI → HIGH</description>
+        <description>Poor credit → HIGH</description>
         <inputEntry id="ie_8_cs">
-          <text>&lt;= csPoorMax</text>
+          <text>&lt;= riskRuleRequest.riskConfig.csPoorMax</text>
         </inputEntry>
         <inputEntry id="ie_8_dti">
-          <text>&lt;= dtiBorderline</text>
+          <text>&lt;= riskRuleRequest.riskConfig.dtiBorderline</text>
         </inputEntry>
         <inputEntry id="ie_8_age">
           <text></text>

@@ -1,6 +1,6 @@
-# Camunda Service — Order Management, Airtel Loan, Loan Risk Assessment, Loan Application Form, Multi-Instance Demo & Payment/Refund
+# Camunda Service — Order Management, Airtel Loan, Loan Risk Assessment, Loan Application Form, Loan Document IDP, Multi-Instance Demo & Payment/Refund
 
-A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle**, the **Airtel loan origination** flow, a **loan risk assessment** process featuring a Business Rule Task, a **loan application form** process demonstrating Camunda Form components, a **multi-instance demo** that explains loop, sequential, and parallel iteration patterns, and a **payment & refund process** demonstrating compensation events and error boundary events.
+A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle**, the **Airtel loan origination** flow, a **loan risk assessment** process featuring a Business Rule Task, a **loan application form** process demonstrating Camunda Form components, a **loan document IDP (Intelligent Document Processing)** flow that simulates OCR/AI extraction with a confidence-gated human review step, a **multi-instance demo** that explains loop, sequential, and parallel iteration patterns, and a **payment & refund process** demonstrating compensation events and error boundary events.
 
 ---
 
@@ -15,6 +15,7 @@ A Spring Boot + Camunda 8 service that orchestrates multiple business processes 
    - [Airtel Loan API](#airtel-loan-api)
    - [Loan Risk Assessment API](#loan-risk-assessment-api)
    - [Loan Application Form API](#loan-application-form-api)
+   - [Loan Document IDP API](#loan-document-idp-api)
    - [Multi-Instance Demo API](#multi-instance-demo-api)
    - [Payment & Refund API](#payment--refund-api)
 
@@ -57,6 +58,7 @@ src/main/java/com/camunda/
 │   ├── AirtelLoanController.java           ← Airtel loan initiation endpoint
 │   ├── LoanRiskAssessmentController.java   ← POST /api/loans/assess
 │   ├── LoanApplicationFormController.java  ← POST /api/loan-forms/start, /{taskKey}/submit
+│   ├── LoanDocumentController.java         ← POST /api/loan-documents/upload
 │   └── DemoProcessController.java          ← POST /api/demo/start
 ├── service/
 │   ├── OrderProcessService.java            ← Process instance & message logic
@@ -64,6 +66,7 @@ src/main/java/com/camunda/
 │   ├── AirtelLoanService.java              ← Starts airtel-loan-capbpm-process
 │   ├── LoanRiskAssessmentService.java      ← Starts loan-risk-assessment-process
 │   ├── LoanApplicationFormService.java     ← Starts loan-application-form-process
+│   ├── LoanDocumentService.java            ← Starts loan-document-idp-process
 │   └── DemoProcessService.java             ← Starts multi-instance-demo-process
 ├── worker/
 │   ├── UserTaskInterceptorWorker.java      ← io.camunda.zeebe:userTask — stores jobKey as variable
@@ -104,6 +107,10 @@ src/main/java/com/camunda/
 │   │   ├── AutoApproveLoanWorker.java           ← loan.auto-approve
 │   │   └── AutoRejectLoanWorker.java            ← loan.auto-reject
 │   │   (risk evaluation → Zeebe DMN engine, no worker needed)
+│   ├── idp/
+│   │   ├── StoreLoanDocumentWorker.java         ← idp.store-document
+│   │   │   (document extraction → out-of-the-box Camunda IDP connector, no worker needed)
+│   │   └── RegisterLoanFromDocumentWorker.java  ← idp.register-loan
 │   └── demo/
 │       ├── PrepareDataWorker.java          ← demo.prepareData
 │       ├── ProcessLoopWorker.java          ← demo.processLoop
@@ -123,6 +130,9 @@ src/main/java/com/camunda/
 │   ├── AirtelLoanSubmitRequest.java
 │   ├── LoanApplicationRequest.java
 │   ├── LoanAssessmentResponse.java
+│   ├── LoanDocumentUploadRequest.java
+│   ├── LoanDocumentProcessResponse.java
+│   ├── ExtractedLoanDataResponse.java
 │   └── StartDemoResponse.java
 └── exceptions/
     ├── GlobalExceptionHandler.java
@@ -135,6 +145,8 @@ src/main/resources/workflow/
 ├── loan-risk-rules.dmn
 ├── loan-application-form-process.bpmn
 ├── loan-application-form.form
+├── loan-document-idp-process.bpmn       ← Loan Document IDP (Document Store + DMN confidence gate)
+├── idp-confidence-rules.dmn             ← Confidence gate for the IDP flow (Business Rule Task)
 ├── multi-instance-demo-process.bpmn
 └── payment-refund-process.bpmn         ← Compensation + Error event demo
 ```
@@ -318,6 +330,60 @@ src/main/resources/workflow/
 
 ---
 
+### Loan Document IDP Process Flow
+
+> Process: `loan-document-idp-process` · A **single-document, template-selection harness**: an
+> exclusive gateway (element IDs still say `gw_parallel_*`, a naming leftover — it's XOR, not
+> parallel, and only **one** branch runs per request) routes on the `exportType` process variable
+> to exactly one of 3 branches, each storing the request's `documentPath` file into Camunda's
+> **native Document Store**, calling the **out-of-the-box IDP Extraction connector** with its own
+> taxonomy, and logging the result. The old single-branch confidence/review/register-loan tail is
+> still unwired (not deleted). See `docs/intelligent-document-processing.md` for full detail,
+> including a couple of known inconsistencies (a stale `resultExpression` on the Image branch,
+> and 2 unused DTO fields) that are flagged there rather than silently fixed.
+
+```
+                              [Start: Document Uploaded]
+                                         │
+                                         ▼
+                                <Split ═╪═>  (exclusive — picks ONE branch by exportType)
+        ┌────────────────────────────────┼────────────────────────────────┐
+        │ exportType=0                   │ exportType=1                   │ default
+        ▼                                ▼                                ▼
+[Store Structured Doc]           [Store Unstructured Doc]          [Store Image Doc]
+  idp.store-document                idp.store-document                idp.store-document
+  (→ structuredLoanDocument)        (→ unstructuredLoanDocument)      (→ imageLoanDocument)
+        │                                │                                │
+        ▼                                ▼                                ▼
+[Extract Structured]             [Extract Unstructured]             [Extract Image]
+  extractionType=STRUCTURED        extractionType=UNSTRUCTURED        extractionType=UNSTRUCTURED
+  (input.includedFields +          (input.taxonomyItems + LLM;        (same engine as Unstructured;
+  renameMappings; no LLM)          resultExpression: raw passthrough) resultExpression is STALE —
+  resultExpression: raw                                               still reads .loanAmount, a
+  passthrough                                                         field not in its taxonomy)
+        │                                │                                │
+        ▼                                ▼                                ▼
+[Print Structured Result]        [Print Unstructured Result]        [Print Image Result]
+  idp.print-extraction-result      idp.print-extraction-result        idp.print-extraction-result
+        │                                │                                │
+        └────────────────────────────────┼────────────────────────────────┘
+                                         ▼
+                                 <Join ═╪═>  (exclusive merge)
+                                         │
+                                         ▼
+                          [END: Template Test Complete]
+```
+
+> The document itself never leaves Camunda's platform storage — each branch's `*LoanDocument` is
+> a native Zeebe **document-type process variable**, so it's viewable/downloadable straight from
+> **Operate** (process instance → Variables tab) without any extra plumbing.
+>
+> No branch currently computes a `confidence` score — all 3 `resultExpression`s were simplified to
+> raw passthrough of `response.extractedFields` (except Image's, which is stale — see above). The
+> `idp-confidence-rules.dmn` decision table still exists but nothing in this process calls it.
+
+---
+
 ## Job Workers Reference
 
 ### Order Workers
@@ -364,6 +430,7 @@ src/main/resources/workflow/
 | Approve Cancellation | `task_approve_cancellation_jobKey` | `support-agent` |
 | Initiate Refund | `task_initiate_refund_jobKey` | `finance-agent` |
 | Manual Loan Review | `task_manual_review_loan_jobKey` | `loan-officer` |
+| Review Extracted Data | `task_review_extracted_data_jobKey` | `loan-officer` |
 
 > Read the variable value from **Camunda Operate** (process instance → Variables tab) and use it as `{{taskKey}}` in the user task API calls below.
 
@@ -431,6 +498,28 @@ src/main/resources/workflow/
 
 ---
 
+### Loan Document IDP Workers (`worker/idp/`)
+
+> Process: `loan-document-idp-process` · A **single-document, template-selection harness** — an
+> exclusive gateway picks exactly **one** of 3 branches per request via `exportType`
+> (Structured / Unstructured / Unstructured+Image), running Store → Extract → Print against the
+> request's `documentPath` file, then ends. The old confidence/review/register-loan tail below
+> the table is currently **unwired** (kept, not deleted — see "Orphaned elements" in
+> `docs/intelligent-document-processing.md`, which also tracks a couple of known drift issues:
+> a stale `resultExpression` on the Image branch, and 2 unused DTO fields).
+
+| Job Type / Binding | Element Type | Worker / Engine | Key Output Variables |
+|---|---|---|---|
+| `idp.store-document` | Service Task (×3: `task_store_structured`, `task_store_unstructured`, `task_store_image` — only one runs per request) | `StoreLoanDocumentWorker`, reused per branch, output renamed via `zeebe:output` | `structuredLoanDocument` / `unstructuredLoanDocument` / `imageLoanDocument` (native Zeebe document-reference variables), `*DocumentStoredAt` |
+| `io.camunda:idp-extraction-connector-template:1` | Service Task (**Connector**, ×3: `Activity_0wvd79i` "Extract Structured", `Activity_1mydyaq` "Extract Unstructured", `task_extract_image`) | **Camunda IDP Extraction connector** (`connectors` service, AWS Textract OCR + AWS Bedrock, no Java worker) | `extractedDataResponseStructured` / `Unstructured` / `Image` (via `resultExpression` — raw `response.extractedFields` passthrough, except Image's which is stale), `idpExtractionResultStructured` / `Unstructured` / `Image` (raw `ExtractionResult`, via `resultVariable`) |
+| `idp.print-extraction-result` | Service Task (×3: `task_print_structured`, `task_print_unstructured`, `task_print_image`) | `PrintExtractionResultWorker` (one job type, reused per branch, disambiguated by `templateLabel`) | none — logs `idpExtractionResult*` + `extractedDataResponse*` for that branch |
+| DMN: `idp-confidence-rules` | **Business Rule Task** — *unwired, orphaned* | **Zeebe DMN engine** (no Java worker) | `reviewRequired` (`true`/`false`) |
+| `idp.register-loan` | Service Task — *unwired, orphaned* | `RegisterLoanFromDocumentWorker` | `loanId`, `loanRegistered=true`, `registeredAt` |
+
+**Document Storage:** No custom storage worker or S3/Blob simulation is used — `StoreLoanDocumentWorker` uploads the file straight into **Camunda's own Document Store**, and the resulting document reference (documentId, storeId, contentHash, metadata) is passed around as a normal process variable, visible/downloadable from **Operate**.
+
+---
+
 ### Airtel Loan Workers
 
 | Job Type | Worker | Key Output Variables |
@@ -467,7 +556,7 @@ src/main/resources/workflow/
 
 ## REST API Endpoints
 
-> **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}` · `{{msisdn}}` · `{{applicationId}}` · `{{paymentId}}`
+> **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}` · `{{msisdn}}` · `{{applicationId}}` · `{{paymentId}}` · `{{documentId}}` · `{{loanNumber}}`
 
 > No extra variables are needed for the Multi-Instance Demo — the endpoint takes no body.
 
@@ -1045,6 +1134,67 @@ curl -X POST {{baseURL}}/api/loans/assess \
     "monthlyIncome": 4000.00,
     "requestedAmount": 15000.00
   }'
+```
+
+---
+
+## Loan Document IDP API
+
+> **Process ID:** `loan-document-idp-process` — a **single-document, template-selection harness**;
+> `exportType` picks exactly one of the 3 IDP extraction branches per request, all reading the
+> same `documentPath` (see `docs/intelligent-document-processing.md` for why the two other DTO
+> fields below are currently unused, and other known drift).
+> **Postman variables:** `{{documentId}}` e.g. `DOC-001` · `{{loanNumber}}` e.g. `LN-2026-001`
+> `documentPath` must point to a **real file on the server's local filesystem** (the JVM reads
+> and uploads it) — e.g. `D:\\Loan.pdf` or `D://Loan.pdf` on Windows, `/data/loan.pdf` on Linux.
+> All 3 branches call the real out-of-the-box **Camunda IDP Extraction connector** (AWS Textract
+> OCR + AWS Bedrock) — requires `CONNECTORS_SECRETIDP_AWS_ACCESSKEY`,
+> `CONNECTORS_SECRETIDP_AWS_SECRETKEY`, `CONNECTORS_SECRETIDP_AWS_BUCKET_NAME` (S3 bucket
+> Textract stages the document to), and `CONNECTORS_SECRETIDP_AWS_REGION` set in the `connectors`
+> container's `connector-secrets.txt` (note the `CONNECTORS_SECRET` prefix this connectors-bundle
+> build requires).
+> See `docs/intelligent-document-processing.md` for the full IDP architecture writeup.
+>
+> There's no synchronous result — `/upload` returns immediately with just the process instance
+> key. Check the app logs for `[IDP][PrintResult]` (one line, from `PrintExtractionResultWorker`)
+> or inspect `extractedDataResponseStructured` / `Unstructured` / `Image` and
+> `idpExtractionResultStructured` / `Unstructured` / `Image` in Camunda Operate — only the
+> variables for the branch actually selected by `exportType` will be populated.
+>
+> ⚠️ The Image branch's `resultExpression` is currently stale (reads a field not in its
+> taxonomy) — its `extractedDataResponseImage` will always come back `null` until that's fixed.
+> See `docs/intelligent-document-processing.md`.
+
+---
+
+### Upload Loan Document — Select a Template via `exportType`
+
+> `exportType: 0` → Structured, `1` → Unstructured, anything else → Unstructured+Image (default flow). Only the selected branch's Store → Extract → Print runs — `documentPath` is the only file actually used.
+>
+> ⚠️ `unstructuredDocumentPath` and `unstructuredImageDocumentPath` are still `@NotBlank`-required on the request even though the process never reads them (see the caveat above) — the request fails with a 400 if you omit them. Send any non-blank placeholder value until that validation is cleaned up.
+
+```bash
+curl -X POST {{baseURL}}/api/loan-documents/upload \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documentId": "DOC-001",
+    "loanNumber": "LN-2026-001",
+    "documentPath": "D://Loan.pdf",
+    "unstructuredDocumentPath": "unused",
+    "unstructuredImageDocumentPath": "unused",
+    "exportType": 0
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "documentId": "DOC-001",
+  "processInstanceKey": 2251799813685400,
+  "status": "STARTED",
+  "message": "Document uploaded — workers will store, extract, and validate the loan document"
+}
 ```
 
 ---

@@ -145,4 +145,41 @@ public class UserTaskController {
                 "taskKey", taskKey,
                 "resolution", resolution));
     }
+
+    /**
+     * Complete the "Review Extracted Data" user task (loan-officer) — corrects low-confidence
+     * IDP/OCR output before loan registration proceeds.
+     *
+     * POST /api/tasks/{taskKey}/loan-document-review
+     *
+     * Body:
+     *   {
+     *     "borrowerName": "John Smith",
+     *     "loanNumber": "LN12345",
+     *     "propertyAddress": "123 Main Street, New York",
+     *     "loanAmount": 350000,
+     *     "closingDate": "2026-08-15",
+     *     "reviewNote": "Corrected borrower name spelling"
+     *   }
+     */
+    @PostMapping("/{taskKey}/loan-document-review")
+    public ResponseEntity<Map<String, Object>> reviewLoanDocument(
+            @PathVariable long taskKey, @RequestBody Map<String, Object> body) {
+
+        var borrowerName = (String) body.get("borrowerName");
+        var loanNumber = (String) body.get("loanNumber");
+        var propertyAddress = (String) body.get("propertyAddress");
+        var loanAmount = body.containsKey("loanAmount") ? ((Number) body.get("loanAmount")).doubleValue() : 0.0;
+        var closingDate = (String) body.get("closingDate");
+        var reviewNote = (String) body.getOrDefault("reviewNote", "");
+
+        log.info("[API] POST /api/tasks/{}/loan-document-review borrower={}", taskKey, borrowerName);
+        userTaskService.completeLoanDocumentReview(
+                taskKey, borrowerName, loanNumber, propertyAddress, loanAmount, closingDate, reviewNote);
+
+        return ResponseEntity.ok(Map.of(
+                "status", "LOAN_DOCUMENT_REVIEW_COMPLETED",
+                "taskKey", taskKey,
+                "borrowerName", borrowerName));
+    }
 }

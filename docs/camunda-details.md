@@ -71,7 +71,7 @@ Mark the **beginning** of a process instance.
 
 #### None Start Event (Default)
 
-![None Start Event](images/bpmn/event-start-none.svg)
+![None Start Event](../images/bpmn/event-start-none.svg)
 
 ```xml
 <startEvent id="StartEvent_1" name="Process Started" />
@@ -83,7 +83,7 @@ Mark the **beginning** of a process instance.
 
 #### Message Start Event
 
-![Message Start Event](images/bpmn/event-start-message.svg)
+![Message Start Event](../images/bpmn/event-start-message.svg)
 
 ```xml
 <startEvent id="StartEvent_Message">
@@ -97,7 +97,7 @@ Mark the **beginning** of a process instance.
 
 #### Timer Start Event
 
-![Timer Start Event](images/bpmn/event-start-timer.svg)
+![Timer Start Event](../images/bpmn/event-start-timer.svg)
 
 ```xml
 <startEvent id="StartEvent_Timer">
@@ -113,7 +113,7 @@ Mark the **beginning** of a process instance.
 
 #### Signal Start Event
 
-![Signal Start Event](images/bpmn/event-start-signal.svg)
+![Signal Start Event](../images/bpmn/event-start-signal.svg)
 
 - Triggered by a broadcast signal (can start multiple processes simultaneously)
 - The triangle icon inside the circle represents the signal
@@ -128,7 +128,7 @@ Occur **between** start and end events.
 
 #### Intermediate Timer Catch Event
 
-![Intermediate Timer Event](images/bpmn/event-intermediate-timer.svg)
+![Intermediate Timer Event](../images/bpmn/event-intermediate-timer.svg)
 
 ```xml
 <intermediateCatchEvent id="Timer_Wait">
@@ -144,7 +144,7 @@ Occur **between** start and end events.
 
 #### Intermediate Message Catch Event
 
-![Intermediate Message Catch](images/bpmn/event-intermediate-message-catch.svg)
+![Intermediate Message Catch](../images/bpmn/event-intermediate-message-catch.svg)
 
 ```xml
 <intermediateCatchEvent id="Message_WaitForPayment">
@@ -159,7 +159,7 @@ Occur **between** start and end events.
 
 #### Intermediate Message Throw Event
 
-![Intermediate Message Throw](images/bpmn/event-intermediate-message-throw.svg)
+![Intermediate Message Throw](../images/bpmn/event-intermediate-message-throw.svg)
 
 ```xml
 <intermediateThrowEvent id="Message_NotifyWarehouse">
@@ -174,7 +174,7 @@ Occur **between** start and end events.
 
 #### Boundary Events
 
-![Boundary Timer Event](images/bpmn/event-boundary-timer.svg)
+![Boundary Timer Event](../images/bpmn/event-boundary-timer.svg)
 
 Attached to a task — trigger when a condition occurs **while the task is active**.
 
@@ -199,7 +199,7 @@ Mark the **end** of a process or path.
 
 #### None End Event
 
-![None End Event](images/bpmn/event-end-none.svg)
+![None End Event](../images/bpmn/event-end-none.svg)
 
 ```xml
 <endEvent id="EndEvent_1" name="Process Complete" />
@@ -210,7 +210,7 @@ Mark the **end** of a process or path.
 
 #### Message End Event
 
-![Message End Event](images/bpmn/event-end-message.svg)
+![Message End Event](../images/bpmn/event-end-message.svg)
 
 ```xml
 <endEvent id="EndEvent_Notify">
@@ -224,7 +224,7 @@ Mark the **end** of a process or path.
 
 #### Error End Event
 
-![Error End Event](images/bpmn/event-end-error.svg)
+![Error End Event](../images/bpmn/event-end-error.svg)
 
 ```xml
 <endEvent id="EndEvent_Error">
@@ -239,7 +239,7 @@ Mark the **end** of a process or path.
 
 #### Terminate End Event
 
-![Terminate End Event](images/bpmn/event-end-terminate.svg)
+![Terminate End Event](../images/bpmn/event-end-terminate.svg)
 
 ```xml
 <endEvent id="EndEvent_Terminate">
@@ -263,7 +263,7 @@ Tasks represent **work** to be performed. They are the core building blocks of a
 
 ### 2.1 Service Task
 
-![Service Task](images/bpmn/task-service.svg)
+![Service Task](../images/bpmn/task-service.svg)
 
 Work done **automatically** by an external worker or connector.
 
@@ -294,7 +294,7 @@ public void sendEmail(final JobClient client, final ActivatedJob job) {
 
 ### 2.2 User Task
 
-![User Task](images/bpmn/task-user.svg)
+![User Task](../images/bpmn/task-user.svg)
 
 Work assigned to a **human user**, visible in Tasklist.
 
@@ -315,7 +315,7 @@ Work assigned to a **human user**, visible in Tasklist.
 
 ### 2.3 Script Task
 
-![Script Task](images/bpmn/task-script.svg)
+![Script Task](../images/bpmn/task-script.svg)
 
 Executes a **FEEL script** inline.
 
@@ -337,7 +337,7 @@ Executes a **FEEL script** inline.
 
 ### 2.4 Business Rule Task
 
-![Business Rule Task](images/bpmn/task-business-rule.svg)
+![Business Rule Task](../images/bpmn/task-business-rule.svg)
 
 Evaluates a **DMN Decision Table**.
 
@@ -359,7 +359,7 @@ Evaluates a **DMN Decision Table**.
 
 ### 2.5 Send Task
 
-![Send Task](images/bpmn/task-send.svg)
+![Send Task](../images/bpmn/task-send.svg)
 
 Sends a **message** to another process or system.
 
@@ -377,7 +377,7 @@ Sends a **message** to another process or system.
 
 ### 2.6 Receive Task
 
-![Receive Task](images/bpmn/task-receive.svg)
+![Receive Task](../images/bpmn/task-receive.svg)
 
 **Waits** for a message to arrive.
 
@@ -403,7 +403,7 @@ camundaClient.newPublishMessageCommand()
 
 ### 2.7 Call Activity
 
-![Call Activity](images/bpmn/task-call-activity.svg)
+![Call Activity](../images/bpmn/task-call-activity.svg)
 
 **Calls a sub-process** (another BPMN process) by its process ID.
 
@@ -427,7 +427,7 @@ camundaClient.newPublishMessageCommand()
 
 ### 2.8 Sub-Process (Embedded)
 
-![Sub-Process](images/bpmn/task-subprocess.svg)
+![Sub-Process](../images/bpmn/task-subprocess.svg)
 
 Groups tasks **within the same process** for better organization.
 
@@ -457,7 +457,7 @@ Gateways control the **flow** of the process — splitting and merging paths.
 
 ### 3.1 Exclusive Gateway (XOR)
 
-![Exclusive Gateway](images/bpmn/gateway-exclusive.svg)
+![Exclusive Gateway](../images/bpmn/gateway-exclusive.svg)
 
 Only **one** outgoing path is taken based on a condition.
 
@@ -487,7 +487,7 @@ Order Received → [In Stock? ✕] → YES → Pack Order → Ship
 
 ### 3.2 Parallel Gateway (AND)
 
-![Parallel Gateway](images/bpmn/gateway-parallel.svg)
+![Parallel Gateway](../images/bpmn/gateway-parallel.svg)
 
 **All** outgoing paths are taken simultaneously (fork), and waits for **all** paths to complete (join).
 
@@ -511,7 +511,7 @@ Order Placed → [Fork +] → Send Confirmation Email ─┐
 
 ### 3.3 Inclusive Gateway (OR)
 
-![Inclusive Gateway](images/bpmn/gateway-inclusive.svg)
+![Inclusive Gateway](../images/bpmn/gateway-inclusive.svg)
 
 **One or more** outgoing paths are taken based on conditions. Waits for all active paths at join.
 
@@ -534,7 +534,7 @@ Order Placed → [Fork +] → Send Confirmation Email ─┐
 
 ### 3.4 Event-Based Gateway
 
-![Event-Based Gateway](images/bpmn/gateway-event-based.svg)
+![Event-Based Gateway](../images/bpmn/gateway-event-based.svg)
 
 Waits for **one of several events** to occur — whichever happens first wins.
 

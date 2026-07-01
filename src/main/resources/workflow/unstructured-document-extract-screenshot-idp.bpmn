@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Web Modeler" exporterVersion="c72e043" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:process id="UnstructuredDocumentExtractScreenshotIDPProcess" name="Unstructured Document Extract Screenshot IDP" isExecutable="true">
+    <bpmn:startEvent id="DocumentUploadedStartEvent" name="Document&#10;Uploaded">
+      <bpmn:outgoing>flow_start_to_store</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_start_to_store" sourceRef="DocumentUploadedStartEvent" targetRef="ReadThePDFAndStoreContentIntoCamundaTask" />
+    <bpmn:serviceTask id="ReadThePDFAndStoreContentIntoCamundaTask" name="Read the PDF and store content into Camunda">
+      <bpmn:documentation>Uploads the file at documentPath into Camunda's Document Store via
+StoreLoanDocumentWorker (idp.store-document). Output: unstructuredDocument, unstructuredDocumentStoredAt.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="=documentPath" target="documentPath" />
+          <zeebe:output source="=document" target="unstructuredDocument" />
+          <zeebe:output source="=documentStoredAt" target="unstructuredDocumentStoredAt" />
+        </zeebe:ioMapping>
+        <zeebe:taskDefinition type="idp.store-document" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_start_to_store</bpmn:incoming>
+      <bpmn:outgoing>flow_store_to_extract_info</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_store_to_extract_info" sourceRef="ReadThePDFAndStoreContentIntoCamundaTask" targetRef="Activity_07jmdj1" />
+    <bpmn:exclusiveGateway id="IsImageUploadedGateway" name="Is Image&#10;Uploaded?" default="NoSequenceFlow">
+      <bpmn:incoming>Flow_0z55fr9</bpmn:incoming>
+      <bpmn:outgoing>YesSequenceFlow</bpmn:outgoing>
+      <bpmn:outgoing>NoSequenceFlow</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="YesSequenceFlow" name="Yes" sourceRef="IsImageUploadedGateway" targetRef="CropSignatureRegionFromPDFTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=signInfo.isSignatureUploaded = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="NoSequenceFlow" name="No" sourceRef="IsImageUploadedGateway" targetRef="NoImageUploadedEndEvent" />
+    <bpmn:serviceTask id="CropSignatureRegionFromPDFTask" name="Crop Signature Region From PDF">
+      <bpmn:documentation>Crops the signature region out of the PDF via ExtractPdfRegionWorker
+(idp.extract-pdf-region), using the location reported in signInfo. Output: extractedImagePath.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="=documentPath" target="documentPath" />
+          <zeebe:input source="=signInfo.isSignatureUploaded" target="isSignatureUploaded" />
+          <zeebe:input source="=3" target="pageNumber" />
+          <zeebe:input source="=250" target="xPosition" />
+          <zeebe:input source="=1350" target="yPosition" />
+          <zeebe:input source="=1000" target="width" />
+          <zeebe:input source="=300" target="hight" />
+        </zeebe:ioMapping>
+        <zeebe:taskDefinition type="idp.extract-pdf-region" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>YesSequenceFlow</bpmn:incoming>
+      <bpmn:outgoing>flow_crop_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_crop_to_end" sourceRef="CropSignatureRegionFromPDFTask" targetRef="PDFRegionExtractedEndEvent" />
+    <bpmn:endEvent id="NoImageUploadedEndEvent" name="No Image&#10;Uploaded">
+      <bpmn:incoming>NoSequenceFlow</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="PDFRegionExtractedEndEvent" name="PDF Region&#10;Extracted">
+      <bpmn:incoming>flow_crop_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Activity_07jmdj1" name="Extract Signature Information Using IDP" zeebe:modelerTemplate="idp-unstructured-extraction-connector-9d0ac2b7-a293-49a7-8a7a-a32a67401b09" zeebe:modelerTemplateVersion="1" zeebe:modelerTemplateIcon="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjE5LjE3ODkiIGhlaWdodD0iMTkuMTc4OSIgZmlsbD0id2hpdGUiIGZpbGwtb3BhY2l0eT0iMC4wMSIgc3R5bGU9Im1peC1ibGVuZC1tb2RlOm11bHRpcGx5Ii8+CjxwYXRoIGQ9Ik0xNi43ODA2IDcuMTkyMDhIMTEuOTg1OVYyLjM5NzM3SDE2Ljc4MDZWNy4xOTIwOFpNMTMuMTg0NiA1Ljk5MzRIMTUuNTgxOVYzLjU5NjA1SDEzLjE4NDZWNS45OTM0WiIgZmlsbD0iI0ZDNUQwRCIvPgo8cGF0aCBkPSJNMTAuMTg3OSA4Ljk5MDFWNS4zOTQwN0g1LjM5MzE4VjEzLjc4NDhIMTMuNzgzOVY4Ljk5MDFIMTAuMTg3OVpNNi41OTE4NiA2LjU5Mjc0SDguOTg5MjFWOC45OTAxSDYuNTkxODZWNi41OTI3NFpNOC45ODkyMSAxMi41ODYxSDYuNTkxODZWMTAuMTg4OEg4Ljk4OTIxVjEyLjU4NjFaTTEyLjU4NTIgMTIuNTg2MUgxMC4xODc5VjEwLjE4ODhIMTIuNTg1MlYxMi41ODYxWiIgZmlsbD0iI0ZDNUQwRCIvPgo8cGF0aCBkPSJNMTUuNTgxOSAxNi43ODE1SDMuNTk1MTZDMy4yNzczNyAxNi43ODExIDIuOTcyNjkgMTYuNjU0NyAyLjc0Nzk3IDE2LjQzQzIuNTIzMjYgMTYuMjA1MyAyLjM5Njg1IDE1LjkwMDYgMi4zOTY0OCAxNS41ODI4VjMuNTk2MDVDMi4zOTY4NSAzLjI3ODI1IDIuNTIzMjYgMi45NzM1NyAyLjc0Nzk3IDIuNzQ4ODZDMi45NzI2OSAyLjUyNDE0IDMuMjc3MzcgMi4zOTc3MyAzLjU5NTE2IDIuMzk3MzdIOS41ODg1NVYzLjU5NjA1SDMuNTk1MTZWMTUuNTgyOEgxNS41ODE5VjkuNTg5NDRIMTYuNzgwNlYxNS41ODI4QzE2Ljc4MDMgMTUuOTAwNiAxNi42NTM5IDE2LjIwNTMgMTYuNDI5MSAxNi40M0MxNi4yMDQ0IDE2LjY1NDcgMTUuODk5NyAxNi43ODExIDE1LjU4MTkgMTYuNzgxNVoiIGZpbGw9IiMxNjE2MTYiLz4KPC9zdmc+Cg==">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda:idp-extraction-connector-template:1" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=unstructuredDocument" target="input.document" />
+          <zeebe:input source="= input.extractionType" target="input.extractionType" />
+          <zeebe:input source="=[&#10;  {&#10;    &#34;prompt&#34;: &#34;Here&#39;s the complete, self-contained prompt:\n\nYou are analyzing a multi-page document to detect handwritten or image-based signatures.\n\nINPUT FORMAT\nThe document will be provided page by page, with each page&#39;s content clearly marked using its true position in the original file, e.g.:\n--- PAGE 1 ---\n&#60;content of page 1&#62;\n--- PAGE 2 ---\n&#60;content of page 2&#62;\n...and so on.\n\nUse these markers as the authoritative page numbers. Do not infer page number from where content appears in a flattened text stream, section order, or table structure — only from the explicit page markers.\n\nTASK\nGo through the document page by page, in order, from the first page marker to the last. For each page, determine whether a genuine handwritten or image-based signature mark is present.\n\nIMPORTANT — What counts as a signature:\n- COUNTS: an actual handwritten/cursive signature image or ink mark (e.g., a stylized name written by hand or embedded as an image).\n- DOES NOT COUNT: printed form labels such as \&#34;Signature\&#34;, \&#34;Member Signature:\&#34;, \&#34;Signature field\&#34;, \&#34;Member&#39;s Signature:\&#34;, or any blank/unfilled signature line. These are field labels, not signatures, even though they contain the word \&#34;signature.\&#34;\n\nDo not stop at the first page containing the word \&#34;signature\&#34; — keep checking every page until you find an actual signature mark or reach the end of the document.\n\nOUTPUT\nReturn a single JSON object with exactly these four fields, and nothing else (no explanation, no markdown, no preamble):\n\n{\n  \&#34;isSignatureUploaded\&#34;: boolean,\n  \&#34;pageNumber\&#34;: integer,\n  \&#34;xPosition\&#34;: number,\n  \&#34;yPosition\&#34;: number\n}\n\nField definitions:\n1. isSignatureUploaded: true if a genuine handwritten/image-based signature mark is found anywhere in the document; otherwise false.\n2. pageNumber: the true 1-indexed page number (from the page markers) where the signature mark was found. If multiple signature marks exist, return the page of the first one encountered in page order. Return 0 if no signature is detected.\n3. xPosition: the x-coordinate (in pixels, from the top-left corner of that page, at the document&#39;s native resolution) of the top-left corner of the signature&#39;s bounding box. Return 0 if no signature is detected.\n4. yPosition: the y-coordinate (in pixels, from the top-left corner of that page, at the document&#39;s native resolution) of the top-left corner of the signature&#39;s bounding box. Return 0 if no signature is detected.\n\nCONSISTENCY RULES\n- If isSignatureUploaded is false, pageNumber, xPosition, and yPosition must all be 0.\n- If isSignatureUploaded is true, pageNumber, xPosition, and yPosition must all be non-zero and must correspond to the exact page and location where the signature mark was actually found.\n- Never confuse a printed label with an actual signature mark.\n- Return valid JSON only — no extra text, no markdown code fences.&#34;,&#10;    &#34;name&#34;: &#34;signInfo&#34;&#10;  }&#10;]" target="input.taxonomyItems" />
+          <zeebe:input source="= input.includedFields" target="input.includedFields" />
+          <zeebe:input source="= input.renameMappings" target="input.renameMappings" />
+          <zeebe:input source="= input.delimiter" target="input.delimiter" />
+          <zeebe:input source="={&#10;  &#34;modelId&#34;: &#34;meta.llama3-70b-instruct-v1:0&#34;&#10;}" target="input.converseData" />
+          <zeebe:input source="aws" target="baseRequest.type" />
+          <zeebe:input source="credentials" target="baseRequest.authentication.type" />
+          <zeebe:input source="{{secrets.IDP_AWS_ACCESSKEY}}" target="baseRequest.authentication.accessKey" />
+          <zeebe:input source="{{secrets.IDP_AWS_SECRETKEY}}" target="baseRequest.authentication.secretKey" />
+          <zeebe:input source="{{secrets.IDP_AWS_BUCKET_NAME}}" target="baseRequest.s3BucketName" />
+          <zeebe:input source="AWS_TEXTRACT" target="baseRequest.extractionEngineType" />
+          <zeebe:input source="{{secrets.IDP_AWS_REGION}}" target="baseRequest.configuration.region" />
+        </zeebe:ioMapping>
+        <zeebe:taskHeaders>
+          <zeebe:header key="elementTemplateVersion" value="2" />
+          <zeebe:header key="elementTemplateId" value="io.camunda.connector.IdpExtractionOutBoundTemplate.v1" />
+          <zeebe:header key="resultVariable" value="idpExtractionResultStructured" />
+          <zeebe:header key="resultExpression" value="={signInfo: response.extractedFields.signInfo}" />
+          <zeebe:header key="errorExpression" />
+          <zeebe:header key="retryBackoff" value="PT0S" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_store_to_extract_info</bpmn:incoming>
+      <bpmn:outgoing>Flow_0z55fr9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0z55fr9" sourceRef="Activity_07jmdj1" targetRef="IsImageUploadedGateway" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="UnstructuredDocumentExtractScreenshotIDPProcess">
+      <bpmndi:BPMNShape id="start_event_document_uploaded_di" bpmnElement="DocumentUploadedStartEvent">
+        <dc:Bounds x="150" y="100" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="143" y="143" width="51" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_store_document_di" bpmnElement="ReadThePDFAndStoreContentIntoCamundaTask">
+        <dc:Bounds x="290" y="78" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_is_image_uploaded_di" bpmnElement="IsImageUploadedGateway" isMarkerVisible="true">
+        <dc:Bounds x="655" y="93" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="653" y="63" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_crop_pdf_region_di" bpmnElement="CropSignatureRegionFromPDFTask">
+        <dc:Bounds x="810" y="78" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_no_image_uploaded_di" bpmnElement="NoImageUploadedEndEvent">
+        <dc:Bounds x="1072" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1066" y="295" width="48" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_pdf_region_extracted_di" bpmnElement="PDFRegionExtractedEndEvent">
+        <dc:Bounds x="1072" y="100" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1060" y="143" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_07jmdj1_di" bpmnElement="Activity_07jmdj1">
+        <dc:Bounds x="470" y="78" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_start_to_store_di" bpmnElement="flow_start_to_store">
+        <di:waypoint x="186" y="118" />
+        <di:waypoint x="290" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_store_to_extract_info_di" bpmnElement="flow_store_to_extract_info">
+        <di:waypoint x="390" y="118" />
+        <di:waypoint x="470" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_gw_to_crop_di" bpmnElement="YesSequenceFlow">
+        <di:waypoint x="705" y="118" />
+        <di:waypoint x="810" y="118" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="749" y="93" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_gw_to_end_no_image_di" bpmnElement="NoSequenceFlow">
+        <di:waypoint x="680" y="143" />
+        <di:waypoint x="680" y="270" />
+        <di:waypoint x="1072" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="688" y="197" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_crop_to_end_di" bpmnElement="flow_crop_to_end">
+        <di:waypoint x="910" y="118" />
+        <di:waypoint x="1072" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0z55fr9_di" bpmnElement="Flow_0z55fr9">
+        <di:waypoint x="570" y="118" />
+        <di:waypoint x="655" y="118" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -36,8 +36,10 @@ public class AutoRejectLoanWorker {
             ActivatedJob job,
             @Variable String applicationId,
             @Variable String applicantName,
-            @Variable String riskLevel,
-            @Variable int riskScore) {
+            @Variable Map<String, Object> riskDecision) {
+
+        var riskLevel = (String) riskDecision.get("riskLevel");
+        var riskScore = ((Number) riskDecision.get("riskScore")).intValue();
 
         log.info(
                 "[Loan][AutoReject] type={} key={} applicationId={} riskLevel={} riskScore={}",

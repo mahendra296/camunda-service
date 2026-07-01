@@ -29,7 +29,9 @@ public class SendRejectionNotificationWorker {
             ActivatedJob job,
             @Variable String applicationId,
             @Variable String applicantName,
-            @Variable String validationError) {
+            @Variable Map<String, Object> validateApplicationResponse) {
+
+        var validationError = (String) validateApplicationResponse.get("validationError");
 
         log.info(
                 "[Loan][SendRejectionNotification] type={} key={} applicationId={} reason={}",

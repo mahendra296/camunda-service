@@ -8,7 +8,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 1.1 Exclusive Gateway (XOR)
 
-![Exclusive Gateway](images/bpmn/gateway-exclusive.svg)
+![Exclusive Gateway](../images/bpmn/gateway-exclusive.svg)
 
 > **Symbol:** Diamond shape with an **X** inside. Routes flow down exactly one outgoing path based on evaluated conditions.
 
@@ -35,7 +35,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 1.2 Parallel Gateway (AND)
 
-![Parallel Gateway](images/bpmn/gateway-parallel.svg)
+![Parallel Gateway](../images/bpmn/gateway-parallel.svg)
 
 > **Symbol:** Diamond shape with a **+** (plus) inside. Splits or joins all paths simultaneously.
 
@@ -64,7 +64,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 1.3 Event-Based Gateway
 
-![Event-Based Gateway](images/bpmn/gateway-event-based.svg)
+![Event-Based Gateway](../images/bpmn/gateway-event-based.svg)
 
 > **Symbol:** Diamond with a double inner circle and a pentagon (or circle with lines), indicating event-driven routing.
 
@@ -96,7 +96,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 1.4 Inclusive Gateway (OR)
 
-![Inclusive Gateway](images/bpmn/gateway-inclusive.svg)
+![Inclusive Gateway](../images/bpmn/gateway-inclusive.svg)
 
 > **Symbol:** Diamond shape with an **O** (circle) inside. Routes flow down one or more outgoing paths based on evaluated conditions.
 
@@ -133,7 +133,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 1.5 Complex Gateway
 
-![Complex Gateway](images/bpmn/gateway-complex.svg)
+![Complex Gateway](../images/bpmn/gateway-complex.svg)
 
 > **Symbol:** Diamond shape with an **asterisk (\*)** inside. Used when routing logic is too complex to express with other gateway types.
 
@@ -167,7 +167,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 2.1 Task
 
-![Task](images/bpmn/task-none.svg)
+![Task](../images/bpmn/task-none.svg)
 
 > **Symbol:** Rounded rectangle with no icon in the top-left corner. Plain white background with a label.
 
@@ -189,7 +189,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 2.2 User Task
 
-![User Task](images/bpmn/task-user.svg)
+![User Task](../images/bpmn/task-user.svg)
 
 > **Symbol:** Rounded rectangle with a **person/silhouette icon** in the top-left corner.
 
@@ -217,7 +217,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 2.3 Service Task
 
-![Service Task](images/bpmn/task-service.svg)
+![Service Task](../images/bpmn/task-service.svg)
 
 > **Symbol:** Rounded rectangle with a **gear/cog icon** in the top-left corner.
 
@@ -246,7 +246,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 2.4 Business Rule Task
 
-![Business Rule Task](images/bpmn/task-business-rule.svg)
+![Business Rule Task](../images/bpmn/task-business-rule.svg)
 
 > **Symbol:** Rounded rectangle with a **table/grid icon** in the top-left corner.
 
@@ -273,7 +273,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 2.5 Script Task
 
-![Script Task](images/bpmn/task-script.svg)
+![Script Task](../images/bpmn/task-script.svg)
 
 > **Symbol:** Rounded rectangle with a **scroll/script icon** in the top-left corner.
 
@@ -302,7 +302,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 3.1 Call Activity
 
-![Call Activity](images/bpmn/task-call-activity.svg)
+![Call Activity](../images/bpmn/task-call-activity.svg)
 
 > **Symbol:** Rounded rectangle with a **thick/bold border** and a small [+] marker at the bottom center, indicating it calls an external process.
 
@@ -331,7 +331,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 3.2 Transaction
 
-![Transaction Sub-Process](images/bpmn/subprocess-transaction.svg)
+![Transaction Sub-Process](../images/bpmn/subprocess-transaction.svg)
 
 > **Symbol:** Rounded rectangle with a **double border** (two concentric rectangles) and a [+] marker at the bottom, indicating a transactional scope.
 
@@ -364,7 +364,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 3.3 Event Sub-Process
 
-![Event Sub-Process](images/bpmn/subprocess-event.svg)
+![Event Sub-Process](../images/bpmn/subprocess-event.svg)
 
 > **Symbol:** Rounded rectangle with a **dashed border** and a small start event circle visible in the top-left corner, with a [+] marker at the bottom.
 
@@ -397,7 +397,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 3.4 Sub-Process (Collapsed)
 
-![Sub-Process Collapsed](images/bpmn/task-subprocess.svg)
+![Sub-Process Collapsed](../images/bpmn/task-subprocess.svg)
 
 > **Symbol:** Rounded rectangle with a thin single border and a [+] marker at the bottom center, hiding the internal flow.
 
@@ -428,7 +428,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 3.5 Sub-Process (Expanded)
 
-![Sub-Process Expanded](images/bpmn/subprocess-expanded.svg)
+![Sub-Process Expanded](../images/bpmn/subprocess-expanded.svg)
 
 > **Symbol:** A larger rounded rectangle showing internal process elements (start event, tasks, end event) visibly laid out inside.
 
@@ -468,7 +468,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 3.6 Ad-Hoc Sub-Process (Collapsed)
 
-![Ad-Hoc Sub-Process Collapsed](images/bpmn/subprocess-adhoc-collapsed.svg)
+![Ad-Hoc Sub-Process Collapsed](../images/bpmn/subprocess-adhoc-collapsed.svg)
 
 > **Symbol:** Rounded rectangle with a [+] marker and a **tilde (~)** symbol at the bottom, collapsed view.
 
@@ -499,7 +499,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 3.7 Ad-Hoc Sub-Process (Expanded)
 
-![Ad-Hoc Sub-Process Expanded](images/bpmn/subprocess-adhoc-expanded.svg)
+![Ad-Hoc Sub-Process Expanded](../images/bpmn/subprocess-adhoc-expanded.svg)
 
 > **Symbol:** Large rounded rectangle showing multiple task boxes inside without connecting arrows, with a **tilde (~)** at the bottom.
 
@@ -532,7 +532,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.1 Start Event (None)
 
-![Start Event None](images/bpmn/event-start-none.svg)
+![Start Event None](../images/bpmn/event-start-none.svg)
 
 > **Symbol:** Thin single-border circle with no icon inside. The thinnest border of all event types.
 
@@ -554,7 +554,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.2 Intermediate Throw Event (None)
 
-![Intermediate Throw Event None](images/bpmn/event-intermediate-throw-none.svg)
+![Intermediate Throw Event None](../images/bpmn/event-intermediate-throw-none.svg)
 
 > **Symbol:** Double-border circle with no icon inside. The double ring distinguishes intermediate events from start/end events.
 
@@ -576,7 +576,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.3 Boundary Event (Concept)
 
-![Boundary Event Standalone](images/bpmn/event-boundary-standalone.svg)
+![Boundary Event Standalone](../images/bpmn/event-boundary-standalone.svg)
 
 > **Symbol:** A double-circle event attached to the **border** of a task or sub-process rectangle. The circle sits on the edge of the task shape.
 
@@ -610,7 +610,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.4 End Event (None)
 
-![End Event None](images/bpmn/event-end-none.svg)
+![End Event None](../images/bpmn/event-end-none.svg)
 
 > **Symbol:** Thick single-border circle with no icon. The thickest border of all event types signals the end of a path.
 
@@ -632,7 +632,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.5 Start Event (Message)
 
-![Start Event Message](images/bpmn/event-start-message.svg)
+![Start Event Message](../images/bpmn/event-start-message.svg)
 
 > **Symbol:** Thin single-border circle with an **envelope/message icon** (outlined rectangle with V-fold) inside.
 
@@ -657,7 +657,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.6 Start Event (Timer)
 
-![Start Event Timer](images/bpmn/event-start-timer.svg)
+![Start Event Timer](../images/bpmn/event-start-timer.svg)
 
 > **Symbol:** Thin single-border circle with a **clock icon** (circle with tick marks and hands) inside.
 
@@ -683,7 +683,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.7 Start Event (Conditional)
 
-![Start Event Conditional](images/bpmn/event-start-conditional.svg)
+![Start Event Conditional](../images/bpmn/event-start-conditional.svg)
 
 > **Symbol:** Thin single-border circle with a **document/list icon** (rectangle with horizontal lines) inside.
 
@@ -709,7 +709,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.8 Start Event (Signal)
 
-![Start Event Signal](images/bpmn/event-start-signal.svg)
+![Start Event Signal](../images/bpmn/event-start-signal.svg)
 
 > **Symbol:** Thin single-border circle with a **triangle/signal icon** (outlined triangle) inside.
 
@@ -735,7 +735,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.9 Intermediate Catch Event (Message)
 
-![Intermediate Message Catch](images/bpmn/event-intermediate-message-catch.svg)
+![Intermediate Message Catch](../images/bpmn/event-intermediate-message-catch.svg)
 
 > **Symbol:** Double-border circle with an **outlined envelope icon** inside (white fill = catching).
 
@@ -760,7 +760,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.10 Intermediate Throw Event (Message)
 
-![Intermediate Message Throw](images/bpmn/event-intermediate-message-throw.svg)
+![Intermediate Message Throw](../images/bpmn/event-intermediate-message-throw.svg)
 
 > **Symbol:** Double-border circle with a **filled (dark) envelope icon** inside (filled = throwing/sending).
 
@@ -788,7 +788,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.11 Intermediate Catch Event (Timer)
 
-![Intermediate Timer](images/bpmn/event-intermediate-timer.svg)
+![Intermediate Timer](../images/bpmn/event-intermediate-timer.svg)
 
 > **Symbol:** Double-border circle with a **clock icon** inside.
 
@@ -814,7 +814,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.12 Intermediate Throw Event (Escalation)
 
-![Intermediate Escalation Throw](images/bpmn/event-intermediate-escalation-throw.svg)
+![Intermediate Escalation Throw](../images/bpmn/event-intermediate-escalation-throw.svg)
 
 > **Symbol:** Double-border circle with a **filled escalation arrow** (upward-pointing chevron/kite shape, filled dark) inside.
 
@@ -840,7 +840,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.13 Intermediate Catch Event (Conditional)
 
-![Intermediate Conditional Catch](images/bpmn/event-intermediate-conditional-catch.svg)
+![Intermediate Conditional Catch](../images/bpmn/event-intermediate-conditional-catch.svg)
 
 > **Symbol:** Double-border circle with a **document/list icon** inside.
 
@@ -866,7 +866,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.14 Intermediate Catch Event (Link)
 
-![Intermediate Link Catch](images/bpmn/event-intermediate-link-catch.svg)
+![Intermediate Link Catch](../images/bpmn/event-intermediate-link-catch.svg)
 
 > **Symbol:** Double-border circle with an **outlined right-pointing arrow** inside (the "incoming" side of a page connector).
 
@@ -890,7 +890,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.15 Intermediate Throw Event (Link)
 
-![Intermediate Link Throw](images/bpmn/event-intermediate-link-throw.svg)
+![Intermediate Link Throw](../images/bpmn/event-intermediate-link-throw.svg)
 
 > **Symbol:** Double-border circle with a **filled right-pointing arrow** inside (the "outgoing" side of a page connector).
 
@@ -914,7 +914,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.16 Intermediate Throw Event (Compensation)
 
-![Intermediate Compensation Throw](images/bpmn/event-intermediate-compensation-throw.svg)
+![Intermediate Compensation Throw](../images/bpmn/event-intermediate-compensation-throw.svg)
 
 > **Symbol:** Double-border circle with two **filled left-pointing triangles** (rewind arrows) inside.
 
@@ -938,7 +938,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.17 Intermediate Catch Event (Signal)
 
-![Intermediate Signal Catch](images/bpmn/event-intermediate-signal-catch.svg)
+![Intermediate Signal Catch](../images/bpmn/event-intermediate-signal-catch.svg)
 
 > **Symbol:** Double-border circle with an **outlined triangle** (signal) inside.
 
@@ -963,7 +963,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.18 Intermediate Throw Event (Signal)
 
-![Intermediate Signal Throw](images/bpmn/event-intermediate-signal-throw.svg)
+![Intermediate Signal Throw](../images/bpmn/event-intermediate-signal-throw.svg)
 
 > **Symbol:** Double-border circle with a **filled (dark) triangle** inside.
 
@@ -987,7 +987,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.19 End Event (Message)
 
-![End Event Message](images/bpmn/event-end-message.svg)
+![End Event Message](../images/bpmn/event-end-message.svg)
 
 > **Symbol:** Thick-border circle with a **filled (dark) envelope icon** inside.
 
@@ -1011,7 +1011,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.20 End Event (Escalation)
 
-![End Event Escalation](images/bpmn/event-end-escalation.svg)
+![End Event Escalation](../images/bpmn/event-end-escalation.svg)
 
 > **Symbol:** Thick-border circle with a **filled escalation arrow** (upward kite shape, dark filled) inside.
 
@@ -1037,7 +1037,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.21 End Event (Error)
 
-![End Event Error](images/bpmn/event-end-error.svg)
+![End Event Error](../images/bpmn/event-end-error.svg)
 
 > **Symbol:** Thick-border circle with a **filled lightning bolt icon** inside.
 
@@ -1062,7 +1062,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.22 End Event (Cancel)
 
-![End Event Cancel](images/bpmn/event-end-cancel.svg)
+![End Event Cancel](../images/bpmn/event-end-cancel.svg)
 
 > **Symbol:** Thick-border circle with an **X (cross)** icon inside.
 
@@ -1086,7 +1086,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.23 End Event (Compensation)
 
-![End Event Compensation](images/bpmn/event-end-compensation.svg)
+![End Event Compensation](../images/bpmn/event-end-compensation.svg)
 
 > **Symbol:** Thick-border circle with two **filled left-pointing triangles** (rewind symbols) inside.
 
@@ -1110,7 +1110,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.24 End Event (Signal)
 
-![End Event Signal](images/bpmn/event-end-signal.svg)
+![End Event Signal](../images/bpmn/event-end-signal.svg)
 
 > **Symbol:** Thick-border circle with a **filled (dark) triangle** inside.
 
@@ -1135,7 +1135,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.25 End Event (Terminate)
 
-![End Event Terminate](images/bpmn/event-end-terminate.svg)
+![End Event Terminate](../images/bpmn/event-end-terminate.svg)
 
 > **Symbol:** Thick-border circle with a **filled solid circle** inside (circle within a circle).
 
@@ -1159,7 +1159,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.26 Boundary Event (Message) — Interrupting
 
-![Boundary Message](images/bpmn/event-boundary-message.svg)
+![Boundary Message](../images/bpmn/event-boundary-message.svg)
 
 > **Symbol:** Double-border circle (solid lines) attached to a task border, with an **outlined envelope icon** inside.
 
@@ -1185,7 +1185,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.27 Boundary Event (Timer) — Interrupting
 
-![Boundary Timer](images/bpmn/event-boundary-timer.svg)
+![Boundary Timer](../images/bpmn/event-boundary-timer.svg)
 
 > **Symbol:** Double-border circle (solid lines) attached to a task border, with a **clock icon** inside.
 
@@ -1213,7 +1213,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.28 Boundary Event (Escalation) — Interrupting
 
-![Boundary Escalation](images/bpmn/event-boundary-escalation.svg)
+![Boundary Escalation](../images/bpmn/event-boundary-escalation.svg)
 
 > **Symbol:** Double-border circle (solid lines) with an **outlined escalation arrow** (hollow upward kite shape) inside.
 
@@ -1239,7 +1239,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.29 Boundary Event (Conditional) — Interrupting
 
-![Boundary Conditional](images/bpmn/event-boundary-conditional.svg)
+![Boundary Conditional](../images/bpmn/event-boundary-conditional.svg)
 
 > **Symbol:** Double-border circle (solid lines) with a **document/list icon** inside.
 
@@ -1267,7 +1267,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.30 Boundary Event (Error) — Interrupting
 
-![Boundary Error](images/bpmn/event-boundary-error.svg)
+![Boundary Error](../images/bpmn/event-boundary-error.svg)
 
 > **Symbol:** Double-border circle (solid lines) with an **outlined lightning bolt** inside.
 
@@ -1293,7 +1293,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.31 Boundary Event (Cancel) — Interrupting
 
-![Boundary Cancel](images/bpmn/event-boundary-cancel.svg)
+![Boundary Cancel](../images/bpmn/event-boundary-cancel.svg)
 
 > **Symbol:** Double-border circle (solid lines) with an **X (cross)** icon inside.
 
@@ -1319,7 +1319,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.32 Boundary Event (Signal) — Interrupting
 
-![Boundary Signal](images/bpmn/event-boundary-signal.svg)
+![Boundary Signal](../images/bpmn/event-boundary-signal.svg)
 
 > **Symbol:** Double-border circle (solid lines) with an **outlined triangle** inside.
 
@@ -1345,7 +1345,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.33 Boundary Event (Compensation) — Interrupting
 
-![Boundary Compensation](images/bpmn/event-boundary-compensation.svg)
+![Boundary Compensation](../images/bpmn/event-boundary-compensation.svg)
 
 > **Symbol:** Double-border circle (solid lines) with two **outlined left-pointing triangles** inside.
 
@@ -1373,7 +1373,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.34 Boundary Event (Message) — Non-Interrupting
 
-![Boundary Message Non-Interrupting](images/bpmn/event-boundary-message-nonint.svg)
+![Boundary Message Non-Interrupting](../images/bpmn/event-boundary-message-nonint.svg)
 
 > **Symbol:** Double-border circle with **dashed lines** (non-interrupting) and an outlined envelope icon inside.
 
@@ -1399,7 +1399,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.35 Boundary Event (Escalation) — Non-Interrupting
 
-![Boundary Escalation Non-Interrupting](images/bpmn/event-boundary-escalation-nonint.svg)
+![Boundary Escalation Non-Interrupting](../images/bpmn/event-boundary-escalation-nonint.svg)
 
 > **Symbol:** Double-border circle with **dashed lines** and an outlined escalation arrow inside.
 
@@ -1425,7 +1425,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.36 Boundary Event (Conditional) — Non-Interrupting
 
-![Boundary Conditional Non-Interrupting](images/bpmn/event-boundary-conditional-nonint.svg)
+![Boundary Conditional Non-Interrupting](../images/bpmn/event-boundary-conditional-nonint.svg)
 
 > **Symbol:** Double-border circle with **dashed lines** and a document/list icon inside.
 
@@ -1453,7 +1453,7 @@ This reference covers all major BPMN 2.0 elements used in Camunda 8 process mode
 
 ### 4.37 Boundary Event (Signal) — Non-Interrupting
 
-![Boundary Signal Non-Interrupting](images/bpmn/event-boundary-signal-nonint.svg)
+![Boundary Signal Non-Interrupting](../images/bpmn/event-boundary-signal-nonint.svg)
 
 > **Symbol:** Double-border circle with **dashed lines** and an outlined triangle inside.
 
