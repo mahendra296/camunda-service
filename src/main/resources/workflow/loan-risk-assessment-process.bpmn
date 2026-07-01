@@ -1,15 +1,74 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_LoanRiskAssessment" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.48.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <bpmn:itemDefinition id="ItemDefinition_riskConfig" itemKind="Information" structureRef="com.camunda.model.RiskConfig" />
   <bpmn:process id="loan-risk-assessment-process" name="Loan Risk Assessment" isExecutable="true">
+    <bpmn:dataStoreReference id="DataStoreReference_riskConfigDb" name="risk_config&#10;[PostgreSQL]" />
+    <bpmn:dataObject id="DataObject_riskConfig" name="riskConfig" itemSubjectRef="ItemDefinition_riskConfig" />
+    <bpmn:dataObjectReference id="DataObjectReference_riskConfig" name="riskConfig&#10;{object}" dataObjectRef="DataObject_riskConfig" />
     <bpmn:startEvent id="start_event_application_received" name="Application&#10;Received">
       <bpmn:outgoing>flow_start_to_validate</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:serviceTask id="task_validate_application" name="Validate&#10;Application">
+      <bpmn:documentation>Validates the loan application fields and loads dynamic risk thresholds from the
+risk_config database table.
+
+Single output variable: validateApplicationResponse (com.camunda.dto.ValidateApplicationResponse)
+{
+  "applicationValid": true,
+  "validationError":  null,
+  "validatedAt":      1719820800000,
+  "riskConfig": {
+    "csExcellentMin": 750,  "csExcellentMax": 850,
+    "csVeryGoodMin":  700,  "csVeryGoodMax":  749,
+    "csGoodMin":      650,  "csAcceptableMin": 600,
+    "csFairMin":      500,  "csFairMax":       599,
+    "csPoorMax":      500,
+    "dtiVeryLow":    0.25,  "dtiLow":         0.30,
+    "dtiBorderline": 0.35,  "dtiMedium":      0.40,
+    "dtiHigh":       0.50,
+    "ageStandard":     25,  "ageMature":        30,
+    "ageYoungMin":     18,  "ageYoungMax":      24
+  }
+}
+
+Gateway reads: validateApplicationResponse.applicationValid
+DMN reads:     validateApplicationResponse.riskConfig</bpmn:documentation>
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="loan.validate-application" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:output source="=validateApplicationResponse" target="validateApplicationResponse" />
+        </zeebe:ioMapping>
+        <zeebe:properties>
+          <zeebe:property name="riskConfig.csExcellentMin" value="int -- lower bound for Excellent credit score band (default 750)" />
+          <zeebe:property name="riskConfig.csExcellentMax" value="int -- upper bound for Excellent credit score band (default 850)" />
+          <zeebe:property name="riskConfig.csVeryGoodMin" value="int -- lower bound for Very Good band (default 700)" />
+          <zeebe:property name="riskConfig.csVeryGoodMax" value="int -- upper bound for Very Good band (default 749)" />
+          <zeebe:property name="riskConfig.csGoodMin" value="int -- lower bound for Good band (default 650)" />
+          <zeebe:property name="riskConfig.csAcceptableMin" value="int -- lower bound for Acceptable band (default 600)" />
+          <zeebe:property name="riskConfig.csFairMin" value="int -- lower bound for Fair band (default 500)" />
+          <zeebe:property name="riskConfig.csFairMax" value="int -- upper bound for Fair band (default 599)" />
+          <zeebe:property name="riskConfig.csPoorMax" value="int -- score threshold for Poor risk / rule 8 (default 500)" />
+          <zeebe:property name="riskConfig.dtiVeryLow" value="double -- very-low DTI upper bound (default 0.25)" />
+          <zeebe:property name="riskConfig.dtiLow" value="double -- low DTI upper bound (default 0.30)" />
+          <zeebe:property name="riskConfig.dtiBorderline" value="double -- borderline DTI upper bound (default 0.35)" />
+          <zeebe:property name="riskConfig.dtiMedium" value="double -- medium DTI upper bound (default 0.40)" />
+          <zeebe:property name="riskConfig.dtiHigh" value="double -- high DTI upper bound (default 0.50)" />
+          <zeebe:property name="riskConfig.ageStandard" value="int -- standard minimum applicant age (default 25)" />
+          <zeebe:property name="riskConfig.ageMature" value="int -- mature minimum applicant age (default 30)" />
+          <zeebe:property name="riskConfig.ageYoungMin" value="int -- young band lower bound (default 18)" />
+          <zeebe:property name="riskConfig.ageYoungMax" value="int -- young band upper bound (default 24)" />
+        </zeebe:properties>
       </bpmn:extensionElements>
       <bpmn:incoming>flow_start_to_validate</bpmn:incoming>
       <bpmn:outgoing>flow_validate_to_gw_valid</bpmn:outgoing>
+      <bpmn:property id="Property_0wxmboo" name="__targetRef_placeholder" />
+      <bpmn:dataInputAssociation id="dia_from_risk_config_db">
+        <bpmn:sourceRef>DataStoreReference_riskConfigDb</bpmn:sourceRef>
+        <bpmn:targetRef>Property_0wxmboo</bpmn:targetRef>
+      </bpmn:dataInputAssociation>
+      <bpmn:dataOutputAssociation id="doa_to_risk_config_obj">
+        <bpmn:targetRef>DataObjectReference_riskConfig</bpmn:targetRef>
+      </bpmn:dataOutputAssociation>
     </bpmn:serviceTask>
     <bpmn:exclusiveGateway id="gw_application_valid" name="Application&#10;Valid?">
       <bpmn:incoming>flow_validate_to_gw_valid</bpmn:incoming>
@@ -27,13 +86,17 @@
       <bpmn:extensionElements>
         <zeebe:calledDecision decisionId="loan-risk-rules" resultVariable="riskDecision" />
         <zeebe:ioMapping>
-          <zeebe:output source="=riskDecision.riskLevel" target="riskLevel" />
-          <zeebe:output source="=riskDecision.riskScore" target="riskScore" />
+          <zeebe:input source="=validateApplicationResponse" target="riskRuleRequest" />
           <zeebe:output source="=riskDecision" target="riskDecision" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>flow_gw_valid_to_evaluate</bpmn:incoming>
       <bpmn:outgoing>flow_evaluate_to_gw_risk</bpmn:outgoing>
+      <bpmn:property id="Property_18x6c5a" name="__targetRef_placeholder" />
+      <bpmn:dataInputAssociation id="dia_from_risk_config_obj">
+        <bpmn:sourceRef>DataObjectReference_riskConfig</bpmn:sourceRef>
+        <bpmn:targetRef>Property_18x6c5a</bpmn:targetRef>
+      </bpmn:dataInputAssociation>
     </bpmn:businessRuleTask>
     <bpmn:exclusiveGateway id="gw_risk_level" name="Risk&#10;Level?">
       <bpmn:incoming>flow_evaluate_to_gw_risk</bpmn:incoming>
@@ -78,158 +141,227 @@
     <bpmn:sequenceFlow id="flow_start_to_validate" sourceRef="start_event_application_received" targetRef="task_validate_application" />
     <bpmn:sequenceFlow id="flow_validate_to_gw_valid" sourceRef="task_validate_application" targetRef="gw_application_valid" />
     <bpmn:sequenceFlow id="flow_gw_valid_to_evaluate" name="Valid" sourceRef="gw_application_valid" targetRef="task_evaluate_risk_rules">
-      <bpmn:conditionExpression>=applicationValid = true</bpmn:conditionExpression>
+      <bpmn:conditionExpression>=validateApplicationResponse.applicationValid = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="flow_gw_valid_to_rejection" name="Invalid" sourceRef="gw_application_valid" targetRef="task_send_rejection_notification">
-      <bpmn:conditionExpression>=applicationValid = false</bpmn:conditionExpression>
+      <bpmn:conditionExpression>=validateApplicationResponse.applicationValid = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="flow_rejection_to_end_invalid" sourceRef="task_send_rejection_notification" targetRef="end_application_invalid" />
     <bpmn:sequenceFlow id="flow_evaluate_to_gw_risk" sourceRef="task_evaluate_risk_rules" targetRef="gw_risk_level" />
     <bpmn:sequenceFlow id="flow_gw_risk_to_approve" name="LOW" sourceRef="gw_risk_level" targetRef="task_auto_approve_loan">
-      <bpmn:conditionExpression>=riskLevel = "LOW"</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=riskDecision.riskLevel = "LOW"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="flow_gw_risk_to_review" name="MEDIUM" sourceRef="gw_risk_level" targetRef="task_manual_review_loan">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=riskDecision.riskLevel = "MEDIUM"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="flow_gw_risk_to_reject" name="HIGH" sourceRef="gw_risk_level" targetRef="task_auto_reject_loan">
-      <bpmn:conditionExpression>=riskLevel = "HIGH"</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=riskDecision.riskLevel = "HIGH"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="flow_approve_to_end" sourceRef="task_auto_approve_loan" targetRef="end_loan_approved" />
     <bpmn:sequenceFlow id="flow_review_to_end" sourceRef="task_manual_review_loan" targetRef="end_review_pending" />
     <bpmn:sequenceFlow id="flow_reject_to_end" sourceRef="task_auto_reject_loan" targetRef="end_loan_rejected" />
+    <bpmn:textAnnotation id="TextAnnotation_riskConfigDbSchema">
+      <bpmn:text>risk_config  (PostgreSQL)
+config_key   : VARCHAR(100)  PK
+config_value : NUMERIC(10,4) NOT NULL
+description  : VARCHAR(255)</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="TextAnnotation_riskConfigSchema">
+      <bpmn:text>// riskConfig — process variable (com.camunda.model.RiskConfig)
+{
+  "csExcellentMin": 750,
+  "csExcellentMax": 850,
+  "csVeryGoodMin":  700,
+  "csVeryGoodMax":  749,
+  "csGoodMin":      650,
+  "csAcceptableMin": 600,
+  "csFairMin":      500,
+  "csFairMax":      599,
+  "csPoorMax":      500,
+  "dtiVeryLow":     0.25,
+  "dtiLow":         0.30,
+  "dtiBorderline":  0.35,
+  "dtiMedium":      0.40,
+  "dtiHigh":        0.50,
+  "ageStandard":    25,
+  "ageMature":      30,
+  "ageYoungMin":    18,
+  "ageYoungMax":    24
+}</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="assoc_riskConfigDb_schema" sourceRef="DataStoreReference_riskConfigDb" targetRef="TextAnnotation_riskConfigDbSchema" />
+    <bpmn:association id="assoc_riskConfig_schema" sourceRef="DataObjectReference_riskConfig" targetRef="TextAnnotation_riskConfigSchema" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="loan-risk-assessment-process">
-      <bpmndi:BPMNShape id="start_event_application_received_di" bpmnElement="start_event_application_received">
-        <dc:Bounds x="162" y="252" width="36" height="36" />
+      <bpmndi:BPMNShape id="DataStoreReference_riskConfigDb_di" bpmnElement="DataStoreReference_riskConfigDb">
+        <dc:Bounds x="345" y="595" width="36" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="145" y="295" width="70" height="27" />
+          <dc:Bounds x="336" y="558" width="53" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DataObjectReference_riskConfig_di" bpmnElement="DataObjectReference_riskConfig">
+        <dc:Bounds x="542" y="595" width="36" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="536" y="652" width="49" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="start_event_application_received_di" bpmnElement="start_event_application_received">
+        <dc:Bounds x="222" y="762" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="213" y="805" width="54" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_validate_application_di" bpmnElement="task_validate_application">
-        <dc:Bounds x="248" y="230" width="110" height="80" />
+        <dc:Bounds x="308" y="740" width="110" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_application_valid_di" bpmnElement="gw_application_valid" isMarkerVisible="true">
-        <dc:Bounds x="418" y="245" width="50" height="50" />
+        <dc:Bounds x="478" y="755" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="402" y="302" width="82" height="27" />
+          <dc:Bounds x="476" y="812" width="54" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_send_rejection_notification_di" bpmnElement="task_send_rejection_notification">
-        <dc:Bounds x="388" y="380" width="110" height="80" />
+        <dc:Bounds x="448" y="890" width="110" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_evaluate_risk_rules_di" bpmnElement="task_evaluate_risk_rules">
-        <dc:Bounds x="528" y="230" width="110" height="80" />
+        <dc:Bounds x="588" y="740" width="110" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw_risk_level_di" bpmnElement="gw_risk_level" isMarkerVisible="true">
-        <dc:Bounds x="698" y="245" width="50" height="50" />
+        <dc:Bounds x="758" y="755" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="700" y="302" width="46" height="27" />
+          <dc:Bounds x="767" y="812" width="33" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_auto_approve_loan_di" bpmnElement="task_auto_approve_loan">
-        <dc:Bounds x="808" y="90" width="110" height="80" />
+        <dc:Bounds x="868" y="600" width="110" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_manual_review_loan_di" bpmnElement="task_manual_review_loan">
-        <dc:Bounds x="808" y="230" width="110" height="80" />
+        <dc:Bounds x="868" y="740" width="110" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task_auto_reject_loan_di" bpmnElement="task_auto_reject_loan">
-        <dc:Bounds x="808" y="380" width="110" height="80" />
+        <dc:Bounds x="868" y="890" width="110" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="end_application_invalid_di" bpmnElement="end_application_invalid">
-        <dc:Bounds x="551" y="402" width="36" height="36" />
+        <dc:Bounds x="611" y="912" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="534" y="445" width="70" height="27" />
+          <dc:Bounds x="602" y="955" width="54" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="end_loan_approved_di" bpmnElement="end_loan_approved">
-        <dc:Bounds x="978" y="112" width="36" height="36" />
+        <dc:Bounds x="1038" y="622" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="961" y="155" width="70" height="27" />
+          <dc:Bounds x="1032" y="665" width="48" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="end_review_pending_di" bpmnElement="end_review_pending">
-        <dc:Bounds x="978" y="252" width="36" height="36" />
+        <dc:Bounds x="1038" y="762" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="961" y="295" width="70" height="27" />
+          <dc:Bounds x="1036" y="805" width="41" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="end_loan_rejected_di" bpmnElement="end_loan_rejected">
-        <dc:Bounds x="978" y="402" width="36" height="36" />
+        <dc:Bounds x="1038" y="912" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="961" y="445" width="70" height="27" />
+          <dc:Bounds x="1034" y="955" width="44" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_riskConfigDbSchema_di" bpmnElement="TextAnnotation_riskConfigDbSchema">
+        <dc:Bounds x="160" y="375" width="235" height="90" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_riskConfigSchema_di" bpmnElement="TextAnnotation_riskConfigSchema">
+        <dc:Bounds x="480" y="80" width="365" height="331" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="dia_from_risk_config_db_di" bpmnElement="dia_from_risk_config_db">
+        <di:waypoint x="363" y="645" />
+        <di:waypoint x="363" y="740" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="doa_to_risk_config_obj_di" bpmnElement="doa_to_risk_config_obj">
+        <di:waypoint x="380" y="740" />
+        <di:waypoint x="560" y="645" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="dia_from_risk_config_obj_di" bpmnElement="dia_from_risk_config_obj">
+        <di:waypoint x="570" y="645" />
+        <di:waypoint x="610" y="740" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_start_to_validate_di" bpmnElement="flow_start_to_validate">
-        <di:waypoint x="198" y="270" />
-        <di:waypoint x="248" y="270" />
+        <di:waypoint x="258" y="780" />
+        <di:waypoint x="308" y="780" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_validate_to_gw_valid_di" bpmnElement="flow_validate_to_gw_valid">
-        <di:waypoint x="358" y="270" />
-        <di:waypoint x="418" y="270" />
+        <di:waypoint x="418" y="780" />
+        <di:waypoint x="478" y="780" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_gw_valid_to_evaluate_di" bpmnElement="flow_gw_valid_to_evaluate">
-        <di:waypoint x="468" y="270" />
-        <di:waypoint x="528" y="270" />
+        <di:waypoint x="528" y="780" />
+        <di:waypoint x="588" y="780" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="481" y="252" width="26" height="14" />
+          <dc:Bounds x="542" y="762" width="24" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_gw_valid_to_rejection_di" bpmnElement="flow_gw_valid_to_rejection">
-        <di:waypoint x="443" y="295" />
-        <di:waypoint x="443" y="380" />
+        <di:waypoint x="503" y="805" />
+        <di:waypoint x="503" y="890" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="449" y="330" width="34" height="14" />
+          <dc:Bounds x="510" y="840" width="32" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_rejection_to_end_invalid_di" bpmnElement="flow_rejection_to_end_invalid">
-        <di:waypoint x="498" y="420" />
-        <di:waypoint x="551" y="420" />
+        <di:waypoint x="558" y="930" />
+        <di:waypoint x="611" y="930" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_evaluate_to_gw_risk_di" bpmnElement="flow_evaluate_to_gw_risk">
-        <di:waypoint x="638" y="270" />
-        <di:waypoint x="698" y="270" />
+        <di:waypoint x="698" y="780" />
+        <di:waypoint x="758" y="780" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_gw_risk_to_approve_di" bpmnElement="flow_gw_risk_to_approve">
-        <di:waypoint x="723" y="245" />
-        <di:waypoint x="723" y="130" />
-        <di:waypoint x="808" y="130" />
+        <di:waypoint x="783" y="755" />
+        <di:waypoint x="783" y="640" />
+        <di:waypoint x="868" y="640" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="729" y="185" width="26" height="14" />
+          <dc:Bounds x="789" y="695" width="26" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_gw_risk_to_review_di" bpmnElement="flow_gw_risk_to_review">
-        <di:waypoint x="748" y="270" />
-        <di:waypoint x="808" y="270" />
+        <di:waypoint x="808" y="780" />
+        <di:waypoint x="868" y="780" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="752" y="252" width="45" height="14" />
+          <dc:Bounds x="812" y="762" width="45" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_gw_risk_to_reject_di" bpmnElement="flow_gw_risk_to_reject">
-        <di:waypoint x="723" y="295" />
-        <di:waypoint x="723" y="420" />
-        <di:waypoint x="808" y="420" />
+        <di:waypoint x="783" y="805" />
+        <di:waypoint x="783" y="930" />
+        <di:waypoint x="868" y="930" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="729" y="350" width="30" height="14" />
+          <dc:Bounds x="790" y="860" width="28" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_approve_to_end_di" bpmnElement="flow_approve_to_end">
-        <di:waypoint x="918" y="130" />
-        <di:waypoint x="978" y="130" />
+        <di:waypoint x="978" y="640" />
+        <di:waypoint x="1038" y="640" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_review_to_end_di" bpmnElement="flow_review_to_end">
-        <di:waypoint x="918" y="270" />
-        <di:waypoint x="978" y="270" />
+        <di:waypoint x="978" y="780" />
+        <di:waypoint x="1038" y="780" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_reject_to_end_di" bpmnElement="flow_reject_to_end">
-        <di:waypoint x="918" y="420" />
-        <di:waypoint x="978" y="420" />
+        <di:waypoint x="978" y="930" />
+        <di:waypoint x="1038" y="930" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assoc_riskConfigDb_schema_di" bpmnElement="assoc_riskConfigDb_schema">
+        <di:waypoint x="361" y="595" />
+        <di:waypoint x="313" y="465" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assoc_riskConfig_schema_di" bpmnElement="assoc_riskConfig_schema">
+        <di:waypoint x="567" y="595" />
+        <di:waypoint x="625" y="411" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
