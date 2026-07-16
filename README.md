@@ -1,6 +1,6 @@
-# Camunda Service — Order Management, Airtel Loan, Loan Risk Assessment, Loan Application Form, Multi-Instance Demo & Payment/Refund
+# Camunda Service — Order Management, Airtel Loan, Loan Risk Assessment, Loan Application Form, Loan Document IDP, Multi-Instance Demo & Payment/Refund
 
-A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle**, the **Airtel loan origination** flow, a **loan risk assessment** process featuring a Business Rule Task, a **loan application form** process demonstrating Camunda Form components, a **multi-instance demo** that explains loop, sequential, and parallel iteration patterns, and a **payment & refund process** demonstrating compensation events and error boundary events.
+A Spring Boot + Camunda 8 service that orchestrates multiple business processes using BPMN 2.0 workflows and Zeebe job workers: the complete **order lifecycle**, the **Airtel loan origination** flow, a **loan risk assessment** process featuring a Business Rule Task, a **loan application form** process demonstrating Camunda Form components, a **loan document IDP (Intelligent Document Processing)** flow that simulates OCR/AI extraction with a confidence-gated human review step, a **multi-instance demo** that explains loop, sequential, and parallel iteration patterns, and a **payment & refund process** demonstrating compensation events and error boundary events.
 
 ---
 
@@ -15,6 +15,7 @@ A Spring Boot + Camunda 8 service that orchestrates multiple business processes 
    - [Airtel Loan API](#airtel-loan-api)
    - [Loan Risk Assessment API](#loan-risk-assessment-api)
    - [Loan Application Form API](#loan-application-form-api)
+   - [Loan Document IDP API](#loan-document-idp-api)
    - [Multi-Instance Demo API](#multi-instance-demo-api)
    - [Payment & Refund API](#payment--refund-api)
 
@@ -57,6 +58,7 @@ src/main/java/com/camunda/
 │   ├── AirtelLoanController.java           ← Airtel loan initiation endpoint
 │   ├── LoanRiskAssessmentController.java   ← POST /api/loans/assess
 │   ├── LoanApplicationFormController.java  ← POST /api/loan-forms/start, /{taskKey}/submit
+│   ├── LoanDocumentController.java         ← POST /api/loan-documents/upload
 │   └── DemoProcessController.java          ← POST /api/demo/start
 ├── service/
 │   ├── OrderProcessService.java            ← Process instance & message logic
@@ -64,6 +66,7 @@ src/main/java/com/camunda/
 │   ├── AirtelLoanService.java              ← Starts airtel-loan-capbpm-process
 │   ├── LoanRiskAssessmentService.java      ← Starts loan-risk-assessment-process
 │   ├── LoanApplicationFormService.java     ← Starts loan-application-form-process
+│   ├── LoanDocumentService.java            ← Starts loan-document-idp-process
 │   └── DemoProcessService.java             ← Starts multi-instance-demo-process
 ├── worker/
 │   ├── UserTaskInterceptorWorker.java      ← io.camunda.zeebe:userTask — stores jobKey as variable
@@ -104,6 +107,10 @@ src/main/java/com/camunda/
 │   │   ├── AutoApproveLoanWorker.java           ← loan.auto-approve
 │   │   └── AutoRejectLoanWorker.java            ← loan.auto-reject
 │   │   (risk evaluation → Zeebe DMN engine, no worker needed)
+│   ├── idp/
+│   │   ├── StoreLoanDocumentWorker.java         ← idp.store-document
+│   │   ├── ExtractLoanDocumentWorker.java       ← idp.extract-document
+│   │   └── RegisterLoanFromDocumentWorker.java  ← idp.register-loan
 │   └── demo/
 │       ├── PrepareDataWorker.java          ← demo.prepareData
 │       ├── ProcessLoopWorker.java          ← demo.processLoop
@@ -123,6 +130,9 @@ src/main/java/com/camunda/
 │   ├── AirtelLoanSubmitRequest.java
 │   ├── LoanApplicationRequest.java
 │   ├── LoanAssessmentResponse.java
+│   ├── LoanDocumentUploadRequest.java
+│   ├── LoanDocumentProcessResponse.java
+│   ├── ExtractedLoanDataResponse.java
 │   └── StartDemoResponse.java
 └── exceptions/
     ├── GlobalExceptionHandler.java
@@ -135,6 +145,8 @@ src/main/resources/workflow/
 ├── loan-risk-rules.dmn
 ├── loan-application-form-process.bpmn
 ├── loan-application-form.form
+├── loan-document-idp-process.bpmn       ← Loan Document IDP (Document Store + DMN confidence gate)
+├── idp-confidence-rules.dmn             ← Confidence gate for the IDP flow (Business Rule Task)
 ├── multi-instance-demo-process.bpmn
 └── payment-refund-process.bpmn         ← Compensation + Error event demo
 ```
@@ -318,6 +330,64 @@ src/main/resources/workflow/
 
 ---
 
+### Loan Document IDP Process Flow
+
+> Process: `loan-document-idp-process` · Built on Camunda 8 platform primitives end to end: the
+> **native Document Store** (`CamundaClient.newCreateDocumentCommand` / `newDocumentContentGetRequest`)
+> holds the file (Camunda *is* the object storage — no custom disk/S3 simulation), a **Zeebe DMN
+> Business Rule Task** governs the confidence gate, and a **Camunda user task** drives human review
+> in Tasklist. Only real text extraction (Apache PDFBox/POI) sits outside the platform, since
+> Camunda itself is not an OCR/AI engine — see `docs/intelligent-document-processing.md`.
+
+```
+[Start: Document Uploaded]
+        │
+        ▼
+[Store Document]  ── idp.store-document ──► StoreLoanDocumentWorker
+        │              Uploads the local file into Camunda's Document Store.
+        │              (loanDocument — native DocumentReferenceResponse, documentStoredAt)
+        ▼
+[Extract Document Data]  ── idp.extract-document ──► ExtractLoanDocumentWorker
+        │                     Fetches the bytes back from the Document Store and runs real
+        │                     text extraction (PDFBox/POI) + regex field parsing.
+        │                     (extractedDataResponse: borrowerName, loanNumber,
+        │                      propertyAddress, loanAmount, closingDate, confidence)
+        ▼
+[Evaluate Confidence ⬡]  ── idp-confidence-rules.dmn ──► Zeebe DMN engine (no worker)
+        │                     (Business Rule Task — reviewRequired = true/false)
+        ▼
+   <Review Required?>
+   ├── No  ──► [Register Loan]  ── idp.register-loan ──► RegisterLoanFromDocumentWorker
+   │                  │
+   │                  ▼
+   │           [END: Loan Registered]
+   │
+   └── Yes ──► [Review Extracted Data ☰]  ── Camunda User Task (loan-officer)
+                      │                       task_review_extracted_data_jobKey
+                      ▼
+               [Register Loan]  ── idp.register-loan ──► RegisterLoanFromDocumentWorker
+                      │
+                      ▼
+               [END: Loan Registered]
+```
+
+| Decision point | Worker / Element | Outcome variable | Effect |
+|---|---|---|---|
+| Confidence gate | **Business Rule Task** (`idp-confidence-rules.dmn`) | `reviewRequired` | `false` (confidence >= 0.9) → register loan directly; `true` (confidence < 0.9) → human review corrects the data first |
+
+**DMN Decision Table — `idp-confidence-rules.dmn`** (hit policy: FIRST)
+
+| # | Extraction Confidence | → reviewRequired |
+|---|---|---|
+| 1 | >= 0.9 | `false` |
+| 2 | < 0.9 | `true` |
+
+> The document itself never leaves Camunda's platform storage — `loanDocument` is a native Zeebe
+> **document-type process variable**, so it's viewable/downloadable straight from **Operate**
+> (process instance → Variables tab) without any extra plumbing.
+
+---
+
 ## Job Workers Reference
 
 ### Order Workers
@@ -364,6 +434,7 @@ src/main/resources/workflow/
 | Approve Cancellation | `task_approve_cancellation_jobKey` | `support-agent` |
 | Initiate Refund | `task_initiate_refund_jobKey` | `finance-agent` |
 | Manual Loan Review | `task_manual_review_loan_jobKey` | `loan-officer` |
+| Review Extracted Data | `task_review_extracted_data_jobKey` | `loan-officer` |
 
 > Read the variable value from **Camunda Operate** (process instance → Variables tab) and use it as `{{taskKey}}` in the user task API calls below.
 
@@ -431,6 +502,30 @@ src/main/resources/workflow/
 
 ---
 
+### Loan Document IDP Workers (`worker/idp/`)
+
+> Process: `loan-document-idp-process` · Demonstrates **Intelligent Document Processing (IDP)**
+> built on Camunda 8 platform primitives: the native **Document Store** (object storage), a
+> **DMN Business Rule Task** (confidence gate), and a **Camunda user task** (human review).
+
+| Job Type / Binding | Element Type | Worker / Engine | Key Output Variables |
+|---|---|---|---|
+| `idp.store-document` | Service Task | `StoreLoanDocumentWorker` | `loanDocument` (native Zeebe document-reference variable — `CamundaClient.newCreateDocumentCommand`), `documentStoredAt` |
+| `idp.extract-document` | Service Task | `ExtractLoanDocumentWorker` | `extractedDataResponse` (`borrowerName`, `loanNumber`, `propertyAddress`, `loanAmount`, `closingDate`, `confidence`, `extractedAt`) — fetches bytes via `CamundaClient.newDocumentContentGetRequest`, then real text extraction (PDFBox/POI) + regex field parsing stands in for an external IDP/OCR provider call |
+| DMN: `idp-confidence-rules` | **Business Rule Task** | **Zeebe DMN engine** (no Java worker) | `reviewRequired` (`true`/`false`) |
+| `idp.register-loan` | Service Task | `RegisterLoanFromDocumentWorker` | `loanId`, `loanRegistered=true`, `registeredAt` |
+
+> The **Business Rule Task** uses `zeebe:calledDecision` (not `zeebe:taskDefinition`) — it calls
+> `idp-confidence-rules.dmn` directly, same pattern as the Loan Risk Assessment process. Since the
+> table has a single output column, `reviewRequired` is bound directly to the boolean result (no
+> wrapper object).
+
+**User Task:** `task_review_extracted_data` (assignee: `loan-officer`) — intercepted by `UserTaskInterceptorWorker` like the other job-based user tasks; completed via `POST /api/tasks/{taskKey}/loan-document-review`, which overwrites `extractedDataResponse` with the corrected values and sets `confidence=1.0`.
+
+**Document Storage:** No custom storage worker or S3/Blob simulation is used — `StoreLoanDocumentWorker` uploads the file straight into **Camunda's own Document Store**, and the resulting `loanDocument` reference (documentId, storeId, contentHash, metadata) is passed around as a normal process variable, visible/downloadable from **Operate** and eligible for a Camunda Forms document-preview component in **Tasklist**.
+
+---
+
 ### Airtel Loan Workers
 
 | Job Type | Worker | Key Output Variables |
@@ -467,7 +562,7 @@ src/main/resources/workflow/
 
 ## REST API Endpoints
 
-> **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}` · `{{msisdn}}` · `{{applicationId}}` · `{{paymentId}}`
+> **Postman collection variables:** `{{baseURL}}` = `http://localhost:8081` · `{{orderId}}` · `{{productId}}` · `{{taskKey}}` · `{{trackingNumber}}` · `{{msisdn}}` · `{{applicationId}}` · `{{paymentId}}` · `{{documentId}}` · `{{loanNumber}}`
 
 > No extra variables are needed for the Multi-Instance Demo — the endpoint takes no body.
 
@@ -1044,6 +1139,90 @@ curl -X POST {{baseURL}}/api/loans/assess \
     "applicantAge": 40,
     "monthlyIncome": 4000.00,
     "requestedAmount": 15000.00
+  }'
+```
+
+---
+
+## Loan Document IDP API
+
+> **Process ID:** `loan-document-idp-process`
+> **Postman variables:** `{{documentId}}` e.g. `DOC-001` · `{{loanNumber}}` e.g. `LN-2026-001`
+> `documentPath` must point to a **real file on the server's local filesystem** (the JVM reads
+> and uploads it) — e.g. `D:\\Loan.pdf` or `D://Loan.pdf` on Windows, `/data/loan.pdf` on Linux.
+> Supported formats: `.pdf` (Apache PDFBox), `.docx` (Apache POI), `.txt` (plain read).
+> See `docs/intelligent-document-processing.md` for the full IDP architecture writeup.
+>
+> For a high-confidence run, put labeled lines in the document, e.g.:
+> ```
+> Borrower Name: John Smith
+> Loan Amount: 350000
+> Property Address: 123 Main Street, New York
+> Closing Date: 2026-08-15
+> ```
+> `ExtractLoanDocumentWorker` regex-matches each label; confidence is derived from how many of
+> the 4 fields were found (4/4 → 0.97 ... 0/4 → 0.15), or force it directly with `simulatedConfidence`.
+
+---
+
+### Upload Loan Document — High Confidence (auto-register)
+
+> All 4 labeled fields present → `ExtractLoanDocumentWorker` derives confidence ≈ 0.97; the `idp-confidence-rules.dmn` Business Rule Task sets `reviewRequired=false`, routing straight to `RegisterLoanFromDocumentWorker`.
+
+```bash
+curl -X POST {{baseURL}}/api/loan-documents/upload \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documentId": "DOC-001",
+    "loanNumber": "LN-2026-001",
+    "documentPath": "D://Loan.pdf"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "documentId": "DOC-001",
+  "processInstanceKey": 2251799813685400,
+  "status": "STARTED",
+  "message": "Document uploaded — workers will store, extract, and validate the loan document"
+}
+```
+
+---
+
+### Upload Loan Document — Trigger Low Confidence (human review)
+
+> `simulatedConfidence` < 0.9 overrides the real extraction result and forces `reviewRequired=true`, routing to `task_review_extracted_data` (assignee: `loan-officer`). Retrieve `task_review_extracted_data_jobKey` from Camunda Operate and use it as `{{taskKey}}`.
+
+```bash
+curl -X POST {{baseURL}}/api/loan-documents/upload \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documentId": "DOC-002",
+    "loanNumber": "LN-2026-002",
+    "documentPath": "D://loan-scanned.docx",
+    "simulatedConfidence": 0.62
+  }'
+```
+
+---
+
+### Complete Review Extracted Data (low-confidence path)
+
+> Use `task_review_extracted_data_jobKey` from Camunda Operate as `{{taskKey}}`. Submits the corrected fields as the new `extractedDataResponse` (confidence raised to `1.0`) — `RegisterLoanFromDocumentWorker` runs next.
+
+```bash
+curl -X POST {{baseURL}}/api/tasks/{{taskKey}}/loan-document-review \
+  -H "Content-Type: application/json" \
+  -d '{
+    "borrowerName": "John Smith",
+    "loanNumber": "LN-2026-002",
+    "propertyAddress": "123 Main Street, New York",
+    "loanAmount": 350000,
+    "closingDate": "2026-08-15",
+    "reviewNote": "Corrected borrower name spelling from OCR misread"
   }'
 ```
 

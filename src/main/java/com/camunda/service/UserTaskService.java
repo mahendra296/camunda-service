@@ -1,5 +1,6 @@
 package com.camunda.service;
 
+import com.camunda.dto.ExtractedLoanDataResponse;
 import io.camunda.client.api.worker.JobClient;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -105,6 +106,44 @@ public class UserTaskService {
                         "refundNote",
                         note != null ? note : "",
                         "refundInitiatedAt",
+                        System.currentTimeMillis()))
+                .send()
+                .join();
+    }
+
+    /**
+     * Completes the "Review Extracted Data" user task (assignee: loan-officer).
+     * Submits the (possibly corrected) extracted loan fields as the new extractedDataResponse,
+     * with confidence raised to 1.0 since a human has verified the values.
+     */
+    public void completeLoanDocumentReview(
+            long taskKey,
+            String borrowerName,
+            String loanNumber,
+            String propertyAddress,
+            double loanAmount,
+            String closingDate,
+            String reviewNote) {
+        log.info("[UserTaskService] Completing loan document review taskKey={} borrower={}", taskKey, borrowerName);
+
+        var extractedDataResponse = ExtractedLoanDataResponse.builder()
+                .borrowerName(borrowerName)
+                .loanNumber(loanNumber)
+                .propertyAddress(propertyAddress)
+                .loanAmount(loanAmount)
+                .closingDate(closingDate)
+                .confidence(1.0)
+                .extractedAt(System.currentTimeMillis())
+                .build();
+
+        jobClient
+                .newCompleteCommand(taskKey)
+                .variables(Map.of(
+                        "extractedDataResponse",
+                        extractedDataResponse,
+                        "reviewNote",
+                        reviewNote != null ? reviewNote : "",
+                        "reviewedAt",
                         System.currentTimeMillis()))
                 .send()
                 .join();

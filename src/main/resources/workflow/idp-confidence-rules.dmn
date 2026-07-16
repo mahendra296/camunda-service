@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_IdpConfidenceRules" name="DRD" namespace="http://camunda.org/schema/1.0/dmn" exporter="Camunda Modeler" exporterVersion="5.48.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <decision id="idp-confidence-rules" name="idp-confidence-decision">
+    <decisionTable id="DecisionTable_idpConfidence" hitPolicy="FIRST">
+      <input id="input_confidence" label="Extraction Confidence">
+        <inputExpression id="inputExpression_confidence" typeRef="double">
+          <text>extractedDataResponse.confidence</text>
+        </inputExpression>
+      </input>
+      <output id="output_review_required" label="Review Required" name="reviewRequired" typeRef="boolean" />
+      <rule id="rule_1">
+        <description>High confidence — skip human review, register the loan directly</description>
+        <inputEntry id="ie_1_confidence">
+          <text>&gt;= 0.9</text>
+        </inputEntry>
+        <outputEntry id="oe_1_review">
+          <text>false</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_2">
+        <description>Low confidence — a loan officer must review/correct the extracted data first</description>
+        <inputEntry id="ie_2_confidence">
+          <text>&lt; 0.9</text>
+        </inputEntry>
+        <outputEntry id="oe_2_review">
+          <text>true</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram>
+      <dmndi:DMNShape id="Decision_IdpConfidence_di" dmnElementRef="idp-confidence-rules">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>
