@@ -20,11 +20,4 @@ public class LoanDocumentUploadRequest {
      */
     @NotBlank(message = "documentPath is required")
     private String documentPath;
-
-    /**
-     * Optional OCR/IDP confidence override (0.0-1.0) to force the low-confidence /
-     * human-review path during testing. When omitted, the extraction worker derives
-     * confidence from how many labeled fields it could find in the document text.
-     */
-    private Double simulatedConfidence;
 }

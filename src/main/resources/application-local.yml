@@ -4,6 +4,14 @@ DATASOURCE_DRIVER_CLASS: org.postgresql.Driver
 DATASOURCE_USERNAME: postgres
 DATASOURCE_PASSWORD: root
 
+# ── Camunda 8 client OIDC auth ───────────────────────────────────────────────
+# From camunda-distributions/docker-compose/versions/camunda-8.9/.env
+# (ORCHESTRATION_CLIENT_ID / ORCHESTRATION_CLIENT_SECRET)
+CAMUNDA_CLIENT_ID: orchestration
+CAMUNDA_CLIENT_SECRET: secret
+CAMUNDA_TOKEN_URL: http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token
+CAMUNDA_TOKEN_AUDIENCE: orchestration-api
+
 spring:
   liquibase:
     enabled: true

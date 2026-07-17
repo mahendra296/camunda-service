@@ -109,7 +109,7 @@ src/main/java/com/camunda/
 │   │   (risk evaluation → Zeebe DMN engine, no worker needed)
 │   ├── idp/
 │   │   ├── StoreLoanDocumentWorker.java         ← idp.store-document
-│   │   ├── ExtractLoanDocumentWorker.java       ← idp.extract-document
+│   │   │   (document extraction → out-of-the-box Camunda IDP connector, no worker needed)
 │   │   └── RegisterLoanFromDocumentWorker.java  ← idp.register-loan
 │   └── demo/
 │       ├── PrepareDataWorker.java          ← demo.prepareData
@@ -334,10 +334,11 @@ src/main/resources/workflow/
 
 > Process: `loan-document-idp-process` · Built on Camunda 8 platform primitives end to end: the
 > **native Document Store** (`CamundaClient.newCreateDocumentCommand` / `newDocumentContentGetRequest`)
-> holds the file (Camunda *is* the object storage — no custom disk/S3 simulation), a **Zeebe DMN
-> Business Rule Task** governs the confidence gate, and a **Camunda user task** drives human review
-> in Tasklist. Only real text extraction (Apache PDFBox/POI) sits outside the platform, since
-> Camunda itself is not an OCR/AI engine — see `docs/intelligent-document-processing.md`.
+> holds the file (Camunda *is* the object storage — no custom disk/S3 simulation), the
+> **out-of-the-box IDP Extraction connector** (deployed via the `connectors` service in
+> `docker-compose-full.yaml`) performs the real AI/OCR extraction — no custom Java worker — a
+> **Zeebe DMN Business Rule Task** governs the confidence gate, and a **Camunda user task** drives
+> human review in Tasklist. See `docs/intelligent-document-processing.md`.
 
 ```
 [Start: Document Uploaded]
@@ -347,9 +348,9 @@ src/main/resources/workflow/
         │              Uploads the local file into Camunda's Document Store.
         │              (loanDocument — native DocumentReferenceResponse, documentStoredAt)
         ▼
-[Extract Document Data]  ── idp.extract-document ──► ExtractLoanDocumentWorker
-        │                     Fetches the bytes back from the Document Store and runs real
-        │                     text extraction (PDFBox/POI) + regex field parsing.
+[Extract Document Data]  ── io.camunda:idp-unstructured-connector-template:1 ──► IDP connector
+        │                     PDFBox pulls raw text locally, then AWS Bedrock (Amazon Nova) maps
+        │                     it onto the taxonomy fields via natural-language prompts — no worker.
         │                     (extractedDataResponse: borrowerName, loanNumber,
         │                      propertyAddress, loanAmount, closingDate, confidence)
         ▼
@@ -505,13 +506,14 @@ src/main/resources/workflow/
 ### Loan Document IDP Workers (`worker/idp/`)
 
 > Process: `loan-document-idp-process` · Demonstrates **Intelligent Document Processing (IDP)**
-> built on Camunda 8 platform primitives: the native **Document Store** (object storage), a
+> built on Camunda 8 platform primitives: the native **Document Store** (object storage), the
+> **out-of-the-box IDP Extraction connector** (real AI/OCR, no custom worker), a
 > **DMN Business Rule Task** (confidence gate), and a **Camunda user task** (human review).
 
 | Job Type / Binding | Element Type | Worker / Engine | Key Output Variables |
 |---|---|---|---|
 | `idp.store-document` | Service Task | `StoreLoanDocumentWorker` | `loanDocument` (native Zeebe document-reference variable — `CamundaClient.newCreateDocumentCommand`), `documentStoredAt` |
-| `idp.extract-document` | Service Task | `ExtractLoanDocumentWorker` | `extractedDataResponse` (`borrowerName`, `loanNumber`, `propertyAddress`, `loanAmount`, `closingDate`, `confidence`, `extractedAt`) — fetches bytes via `CamundaClient.newDocumentContentGetRequest`, then real text extraction (PDFBox/POI) + regex field parsing stands in for an external IDP/OCR provider call |
+| `io.camunda:idp-unstructured-connector-template:1` | Service Task (**Connector**) | **Camunda IDP Unstructured Extraction connector** (`connectors` service, PDFBox + AWS Bedrock, no Java worker) | `extractedDataResponse` (`borrowerName`, `propertyAddress`, `loanAmount`, `closingDate`, `confidence`, via `resultExpression` — `loanNumber` deliberately excluded, already available as its own top-level process variable), `idpExtractionResult` (raw `ExtractionResult`, via `resultVariable`) |
 | DMN: `idp-confidence-rules` | **Business Rule Task** | **Zeebe DMN engine** (no Java worker) | `reviewRequired` (`true`/`false`) |
 | `idp.register-loan` | Service Task | `RegisterLoanFromDocumentWorker` | `loanId`, `loanRegistered=true`, `registeredAt` |
 
@@ -1150,24 +1152,28 @@ curl -X POST {{baseURL}}/api/loans/assess \
 > **Postman variables:** `{{documentId}}` e.g. `DOC-001` · `{{loanNumber}}` e.g. `LN-2026-001`
 > `documentPath` must point to a **real file on the server's local filesystem** (the JVM reads
 > and uploads it) — e.g. `D:\\Loan.pdf` or `D://Loan.pdf` on Windows, `/data/loan.pdf` on Linux.
-> Supported formats: `.pdf` (Apache PDFBox), `.docx` (Apache POI), `.txt` (plain read).
+> `task_extract_document` calls the real out-of-the-box **Camunda IDP Unstructured Extraction
+> connector** (PDFBox text extraction + AWS Bedrock) — requires `CONNECTORS_SECRETIDP_AWS_ACCESSKEY`
+> and `CONNECTORS_SECRETIDP_AWS_SECRETKEY` set in the `connectors` container's
+> `connector-secrets.txt` (note the `CONNECTORS_SECRET` prefix this connectors-bundle build
+> requires) and a real, text-based PDF document.
 > See `docs/intelligent-document-processing.md` for the full IDP architecture writeup.
 >
-> For a high-confidence run, put labeled lines in the document, e.g.:
+> For a high-confidence run, put labeled fields clearly in the document, e.g.:
 > ```
 > Borrower Name: John Smith
 > Loan Amount: 350000
 > Property Address: 123 Main Street, New York
 > Closing Date: 2026-08-15
 > ```
-> `ExtractLoanDocumentWorker` regex-matches each label; confidence is derived from how many of
-> the 4 fields were found (4/4 → 0.97 ... 0/4 → 0.15), or force it directly with `simulatedConfidence`.
+> Bedrock has no native per-field confidence score in this mode; `extractedDataResponse.confidence`
+> is the fraction of the 4 taxonomy fields that came back non-null (4/4 → 1.0 ... 0/4 → 0.0).
 
 ---
 
 ### Upload Loan Document — High Confidence (auto-register)
 
-> All 4 labeled fields present → `ExtractLoanDocumentWorker` derives confidence ≈ 0.97; the `idp-confidence-rules.dmn` Business Rule Task sets `reviewRequired=false`, routing straight to `RegisterLoanFromDocumentWorker`.
+> A clean document with all 4 labeled fields → Bedrock extracts all of them non-null, `extractedDataResponse.confidence=1.0`; the `idp-confidence-rules.dmn` Business Rule Task sets `reviewRequired=false`, routing straight to `RegisterLoanFromDocumentWorker`.
 
 ```bash
 curl -X POST {{baseURL}}/api/loan-documents/upload \
@@ -1194,7 +1200,7 @@ curl -X POST {{baseURL}}/api/loan-documents/upload \
 
 ### Upload Loan Document — Trigger Low Confidence (human review)
 
-> `simulatedConfidence` < 0.9 overrides the real extraction result and forces `reviewRequired=true`, routing to `task_review_extracted_data` (assignee: `loan-officer`). Retrieve `task_review_extracted_data_jobKey` from Camunda Operate and use it as `{{taskKey}}`.
+> A document missing one or more of the 4 labeled fields → confidence drops below 0.9 (e.g. 3/4 → 0.75), so `reviewRequired=true`, routing to `task_review_extracted_data` (assignee: `loan-officer`). Retrieve `task_review_extracted_data_jobKey` from Camunda Operate and use it as `{{taskKey}}`.
 
 ```bash
 curl -X POST {{baseURL}}/api/loan-documents/upload \
@@ -1202,8 +1208,7 @@ curl -X POST {{baseURL}}/api/loan-documents/upload \
   -d '{
     "documentId": "DOC-002",
     "loanNumber": "LN-2026-002",
-    "documentPath": "D://loan-scanned.docx",
-    "simulatedConfidence": 0.62
+    "documentPath": "D://loan-scanned.pdf"
   }'
 ```
 

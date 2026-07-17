@@ -15,6 +15,10 @@ import org.springframework.stereotype.Component;
  * Registers the loan using the (possibly human-corrected) extracted document data. Simulates the
  * downstream {@code POST /loan/register} business API call.
  *
+ * <p>{@code extractedDataResponse.loanAmount} may arrive either as a {@code Number} (human-reviewed
+ * path, see {@code UserTaskService#completeLoanDocumentReview}) or as a raw OCR {@code String} (IDP
+ * connector path, e.g. {@code "$350,000.00"}), so it is parsed defensively.
+ *
  * <p>Output variables:
  *
  * <ul>
@@ -36,7 +40,7 @@ public class RegisterLoanFromDocumentWorker {
             @Variable Map<String, Object> extractedDataResponse) {
 
         var borrowerName = (String) extractedDataResponse.get("borrowerName");
-        var loanAmount = ((Number) extractedDataResponse.get("loanAmount")).doubleValue();
+        var loanAmount = parseLoanAmount(extractedDataResponse.get("loanAmount"));
 
         log.info(
                 "[IDP][RegisterLoan] type={} key={} documentId={} borrower={} amount={}",
@@ -70,5 +74,14 @@ public class RegisterLoanFromDocumentWorker {
                     .send()
                     .join();
         }
+    }
+
+    // ──────────────────────────────────────────────
+    private double parseLoanAmount(Object rawLoanAmount) {
+        if (rawLoanAmount instanceof Number number) {
+            return number.doubleValue();
+        }
+        var digitsOnly = String.valueOf(rawLoanAmount).replaceAll("[^0-9.]", "");
+        return digitsOnly.isBlank() ? 0.0 : Double.parseDouble(digitsOnly);
     }
 }

@@ -29,9 +29,18 @@ server:
   port: 8081
 
 # ── Camunda 8 Local (Self-Managed) ───────────────────────────────────────────
+# The docker-compose-full.yaml stack (camunda-distributions/docker-compose/versions/camunda-8.9)
+# secures the orchestration cluster with OIDC via Keycloak. Values come from the active profile
+# (see application-local.yml), sourced from that stack's .env (ORCHESTRATION_CLIENT_ID / SECRET).
 camunda:
   client:
     mode: selfmanaged
     grpc-address: grpc://${ZEEBE_HOST:localhost}:26500
     rest-address: http://${ZEEBE_HOST:localhost}:8080
+    auth:
+      method: oidc
+      client-id: ${CAMUNDA_CLIENT_ID}
+      client-secret: ${CAMUNDA_CLIENT_SECRET}
+      token-url: ${CAMUNDA_TOKEN_URL}
+      audience: ${CAMUNDA_TOKEN_AUDIENCE}
 

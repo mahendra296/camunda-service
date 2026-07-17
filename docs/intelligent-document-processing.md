@@ -4,18 +4,73 @@
 
 Intelligent Document Processing (IDP) is a solution that automates the extraction, validation, and processing of information from documents such as PDFs, scanned images, invoices, contracts, loan documents, and identity documents.
 
-Camunda 8 is **not an OCR or AI engine**. Instead, it acts as the **workflow orchestrator**, coordinating document processing, AI extraction, validation, human review, and downstream business processes.
+Camunda 8's orchestration layer (Zeebe) does not itself do OCR/AI — but as of the 8.7+
+Connectors bundle, Camunda **ships a native, out-of-the-box IDP Extraction connector**
+(`camunda/connectors-bundle`, module `connector-idp-extraction`) that talks directly to a
+hyperscaler's document/AI services (AWS Textract + Bedrock, Azure AI Document Intelligence +
+AI Foundry, Google Document AI + Vertex AI, or any OpenAI-compatible endpoint). No custom
+Java worker is required for the extraction step — see
+[Implementation in this repository](#implementation-in-this-repository) below.
 
-The actual document understanding is performed by external IDP services such as:
+The actual document understanding is still performed by an external, cloud AI/OCR provider —
+Camunda coordinates the workflow and calls that provider through the connector:
 
-- AWS Textract
-- Google Document AI
-- Azure AI Document Intelligence
+- AWS Textract / Bedrock
+- Google Document AI / Vertex AI
+- Azure AI Document Intelligence / AI Foundry
 - ABBYY Vantage
-- OpenAI Vision
-- Tesseract OCR
+- Any OpenAI-compatible `/chat/completions` endpoint
 
-Camunda coordinates the complete business process while workers integrate with these services.
+---
+
+## Implementation in this repository
+
+`loan-document-idp-process.bpmn` → `task_extract_document` is wired directly to the real
+connector, not a custom worker:
+
+| | |
+|---|---|
+| Job type | `io.camunda:idp-unstructured-connector-template:1` |
+| Runtime | `connectors` service (`camunda/connectors-bundle`) in `docker-compose-full.yaml` |
+| Text extraction | Apache PDFBox, local, no AWS OCR call — the PDF has real embedded text |
+| Field extraction | AWS Bedrock (`amazon.nova-micro-v1:0`, region `us-east-1`) reads the raw text and maps it onto 4 taxonomy fields (`borrowerName`, `propertyAddress`, `loanAmount`, `closingDate`), each with a natural-language prompt |
+| Secrets required | `IDP_AWS_ACCESSKEY`, `IDP_AWS_SECRETKEY` in `connector-secrets.txt` (prefixed `CONNECTORS_SECRET`, see below) |
+| Output | `idpExtractionResult` (raw connector response, via `resultVariable`), `extractedDataResponse` (via `resultExpression`) — `borrowerName`, `propertyAddress`, `loanAmount`, `closingDate`, `confidence` only, deliberately **no** `loanNumber` |
+
+Non-obvious things learned the hard way while wiring this up, worth knowing before touching this
+task again:
+
+1. **STRUCTURED mode (Amazon Textract Forms) does not work on this kind of document.** It was
+   the first thing tried, since it returns real per-field confidence scores. It returned zero
+   extracted fields against a plain PDF with `Label: value` text lines, because Textract's Forms
+   detector is a spatial/visual form-field detector for scanned/boxed forms, not a text parser.
+   UNSTRUCTURED mode (Bedrock reading raw text against a taxonomy prompt) is the correct method
+   for this document shape — the tradeoff is no native per-field confidence, so
+   `extractedDataResponse.confidence` is derived instead as (# of the 4 taxonomy fields that came
+   back non-null) / 4.
+2. **`resultExpression`'s FEEL scope only ever exposes `response`** (the connector's own output)
+   — no other process variables, however they're named or however many `zeebe:input` mappings try
+   to smuggle them in as job-local variables. `loanNumber` is therefore **not** built into
+   `extractedDataResponse` here — it doesn't need to be, since it's already visible on its own as
+   a top-level process variable in Operate/Tasklist. If a future field genuinely needs a
+   non-`response` value inside the connector's output object, do it with a regular `zeebe:output`
+   mapping on the task instead (that one does have full process-variable scope) — just know that
+   Web Modeler's own IDP configuration panel only ever writes `resultExpression`, so a
+   `zeebe:output` addition will get silently dropped the next time this task is reconfigured
+   through that UI rather than by hand-editing the BPMN.
+
+Secret naming: this connectors-bundle build's `EnvironmentSecretProvider` only exposes env vars
+prefixed `CONNECTORS_SECRET` (no separator) as connector secrets. `{{secrets.IDP_AWS_ACCESSKEY}}`
+in the BPMN resolves against the env var `CONNECTORS_SECRETIDP_AWS_ACCESSKEY`, not
+`IDP_AWS_ACCESSKEY` — see the comment in `connector-secrets.txt`.
+
+This is the pattern to follow for any other document type in this codebase: point a service
+task's `zeebe:taskDefinition` at the connector job type (get the exact string from the
+connector's own `Starting job worker: ... with type ...` startup log line — it's the element
+template ID, not the Java class name), map the document + taxonomy via `zeebe:input`, and shape
+the final process variable with `resultExpression` using only fields available on `response` —
+if you need to mix in other process variables, read them from their own top-level variable
+downstream instead of trying to nest them into the connector's result object.
 
 ---
 
@@ -140,6 +195,12 @@ Example:
 ---
 
 # Step 2 – OCR / IDP Service Task
+
+> This section describes the **generic pattern** for wiring OCR/IDP into a BPMN process with a
+> hand-written job worker. In this repository, `task_extract_document` instead uses Camunda's
+> real **out-of-the-box IDP Extraction connector** directly — no custom worker — see
+> [Implementation in this repository](#implementation-in-this-repository) above. Use the
+> pattern below only when the out-of-the-box connector doesn't cover your provider/use case.
 
 Create a Service Task in BPMN.
 

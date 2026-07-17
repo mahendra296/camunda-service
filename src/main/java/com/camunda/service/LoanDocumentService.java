@@ -53,9 +53,6 @@ public class LoanDocumentService {
         vars.put("documentId", request.getDocumentId());
         vars.put("loanNumber", request.getLoanNumber());
         vars.put("documentPath", request.getDocumentPath());
-        if (request.getSimulatedConfidence() != null) {
-            vars.put("simulatedConfidence", request.getSimulatedConfidence());
-        }
         vars.put("uploadedAt", System.currentTimeMillis());
         return vars;
     }

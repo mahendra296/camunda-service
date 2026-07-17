@@ -77,20 +77,6 @@
 			<version>1.80</version>
 		</dependency>
 
-		<!-- Apache PDFBox — real text extraction from uploaded loan PDFs (IDP flow) -->
-		<dependency>
-			<groupId>org.apache.pdfbox</groupId>
-			<artifactId>pdfbox</artifactId>
-			<version>3.0.3</version>
-		</dependency>
-
-		<!-- Apache POI — real text extraction from uploaded loan .docx files (IDP flow) -->
-		<dependency>
-			<groupId>org.apache.poi</groupId>
-			<artifactId>poi-ooxml</artifactId>
-			<version>5.3.0</version>
-		</dependency>
-
 		<!-- Spring Data JPA -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
