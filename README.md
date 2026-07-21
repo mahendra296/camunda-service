@@ -332,60 +332,55 @@ src/main/resources/workflow/
 
 ### Loan Document IDP Process Flow
 
-> Process: `loan-document-idp-process` · Built on Camunda 8 platform primitives end to end: the
-> **native Document Store** (`CamundaClient.newCreateDocumentCommand` / `newDocumentContentGetRequest`)
-> holds the file (Camunda *is* the object storage — no custom disk/S3 simulation), the
-> **out-of-the-box IDP Extraction connector** (deployed via the `connectors` service in
-> `docker-compose-full.yaml`) performs the real AI/OCR extraction — no custom Java worker — a
-> **Zeebe DMN Business Rule Task** governs the confidence gate, and a **Camunda user task** drives
-> human review in Tasklist. See `docs/intelligent-document-processing.md`.
+> Process: `loan-document-idp-process` · A **single-document, template-selection harness**: an
+> exclusive gateway (element IDs still say `gw_parallel_*`, a naming leftover — it's XOR, not
+> parallel, and only **one** branch runs per request) routes on the `exportType` process variable
+> to exactly one of 3 branches, each storing the request's `documentPath` file into Camunda's
+> **native Document Store**, calling the **out-of-the-box IDP Extraction connector** with its own
+> taxonomy, and logging the result. The old single-branch confidence/review/register-loan tail is
+> still unwired (not deleted). See `docs/intelligent-document-processing.md` for full detail,
+> including a couple of known inconsistencies (a stale `resultExpression` on the Image branch,
+> and 2 unused DTO fields) that are flagged there rather than silently fixed.
 
 ```
-[Start: Document Uploaded]
-        │
-        ▼
-[Store Document]  ── idp.store-document ──► StoreLoanDocumentWorker
-        │              Uploads the local file into Camunda's Document Store.
-        │              (loanDocument — native DocumentReferenceResponse, documentStoredAt)
-        ▼
-[Extract Document Data]  ── io.camunda:idp-unstructured-connector-template:1 ──► IDP connector
-        │                     PDFBox pulls raw text locally, then AWS Bedrock (Amazon Nova) maps
-        │                     it onto the taxonomy fields via natural-language prompts — no worker.
-        │                     (extractedDataResponse: borrowerName, loanNumber,
-        │                      propertyAddress, loanAmount, closingDate, confidence)
-        ▼
-[Evaluate Confidence ⬡]  ── idp-confidence-rules.dmn ──► Zeebe DMN engine (no worker)
-        │                     (Business Rule Task — reviewRequired = true/false)
-        ▼
-   <Review Required?>
-   ├── No  ──► [Register Loan]  ── idp.register-loan ──► RegisterLoanFromDocumentWorker
-   │                  │
-   │                  ▼
-   │           [END: Loan Registered]
-   │
-   └── Yes ──► [Review Extracted Data ☰]  ── Camunda User Task (loan-officer)
-                      │                       task_review_extracted_data_jobKey
-                      ▼
-               [Register Loan]  ── idp.register-loan ──► RegisterLoanFromDocumentWorker
-                      │
-                      ▼
-               [END: Loan Registered]
+                              [Start: Document Uploaded]
+                                         │
+                                         ▼
+                                <Split ═╪═>  (exclusive — picks ONE branch by exportType)
+        ┌────────────────────────────────┼────────────────────────────────┐
+        │ exportType=0                   │ exportType=1                   │ default
+        ▼                                ▼                                ▼
+[Store Structured Doc]           [Store Unstructured Doc]          [Store Image Doc]
+  idp.store-document                idp.store-document                idp.store-document
+  (→ structuredLoanDocument)        (→ unstructuredLoanDocument)      (→ imageLoanDocument)
+        │                                │                                │
+        ▼                                ▼                                ▼
+[Extract Structured]             [Extract Unstructured]             [Extract Image]
+  extractionType=STRUCTURED        extractionType=UNSTRUCTURED        extractionType=UNSTRUCTURED
+  (input.includedFields +          (input.taxonomyItems + LLM;        (same engine as Unstructured;
+  renameMappings; no LLM)          resultExpression: raw passthrough) resultExpression is STALE —
+  resultExpression: raw                                               still reads .loanAmount, a
+  passthrough                                                         field not in its taxonomy)
+        │                                │                                │
+        ▼                                ▼                                ▼
+[Print Structured Result]        [Print Unstructured Result]        [Print Image Result]
+  idp.print-extraction-result      idp.print-extraction-result        idp.print-extraction-result
+        │                                │                                │
+        └────────────────────────────────┼────────────────────────────────┘
+                                         ▼
+                                 <Join ═╪═>  (exclusive merge)
+                                         │
+                                         ▼
+                          [END: Template Test Complete]
 ```
 
-| Decision point | Worker / Element | Outcome variable | Effect |
-|---|---|---|---|
-| Confidence gate | **Business Rule Task** (`idp-confidence-rules.dmn`) | `reviewRequired` | `false` (confidence >= 0.9) → register loan directly; `true` (confidence < 0.9) → human review corrects the data first |
-
-**DMN Decision Table — `idp-confidence-rules.dmn`** (hit policy: FIRST)
-
-| # | Extraction Confidence | → reviewRequired |
-|---|---|---|
-| 1 | >= 0.9 | `false` |
-| 2 | < 0.9 | `true` |
-
-> The document itself never leaves Camunda's platform storage — `loanDocument` is a native Zeebe
-> **document-type process variable**, so it's viewable/downloadable straight from **Operate**
-> (process instance → Variables tab) without any extra plumbing.
+> The document itself never leaves Camunda's platform storage — each branch's `*LoanDocument` is
+> a native Zeebe **document-type process variable**, so it's viewable/downloadable straight from
+> **Operate** (process instance → Variables tab) without any extra plumbing.
+>
+> No branch currently computes a `confidence` score — all 3 `resultExpression`s were simplified to
+> raw passthrough of `response.extractedFields` (except Image's, which is stale — see above). The
+> `idp-confidence-rules.dmn` decision table still exists but nothing in this process calls it.
 
 ---
 
@@ -505,26 +500,23 @@ src/main/resources/workflow/
 
 ### Loan Document IDP Workers (`worker/idp/`)
 
-> Process: `loan-document-idp-process` · Demonstrates **Intelligent Document Processing (IDP)**
-> built on Camunda 8 platform primitives: the native **Document Store** (object storage), the
-> **out-of-the-box IDP Extraction connector** (real AI/OCR, no custom worker), a
-> **DMN Business Rule Task** (confidence gate), and a **Camunda user task** (human review).
+> Process: `loan-document-idp-process` · A **single-document, template-selection harness** — an
+> exclusive gateway picks exactly **one** of 3 branches per request via `exportType`
+> (Structured / Unstructured / Unstructured+Image), running Store → Extract → Print against the
+> request's `documentPath` file, then ends. The old confidence/review/register-loan tail below
+> the table is currently **unwired** (kept, not deleted — see "Orphaned elements" in
+> `docs/intelligent-document-processing.md`, which also tracks a couple of known drift issues:
+> a stale `resultExpression` on the Image branch, and 2 unused DTO fields).
 
 | Job Type / Binding | Element Type | Worker / Engine | Key Output Variables |
 |---|---|---|---|
-| `idp.store-document` | Service Task | `StoreLoanDocumentWorker` | `loanDocument` (native Zeebe document-reference variable — `CamundaClient.newCreateDocumentCommand`), `documentStoredAt` |
-| `io.camunda:idp-unstructured-connector-template:1` | Service Task (**Connector**) | **Camunda IDP Unstructured Extraction connector** (`connectors` service, PDFBox + AWS Bedrock, no Java worker) | `extractedDataResponse` (`borrowerName`, `propertyAddress`, `loanAmount`, `closingDate`, `confidence`, via `resultExpression` — `loanNumber` deliberately excluded, already available as its own top-level process variable), `idpExtractionResult` (raw `ExtractionResult`, via `resultVariable`) |
-| DMN: `idp-confidence-rules` | **Business Rule Task** | **Zeebe DMN engine** (no Java worker) | `reviewRequired` (`true`/`false`) |
-| `idp.register-loan` | Service Task | `RegisterLoanFromDocumentWorker` | `loanId`, `loanRegistered=true`, `registeredAt` |
+| `idp.store-document` | Service Task (×3: `task_store_structured`, `task_store_unstructured`, `task_store_image` — only one runs per request) | `StoreLoanDocumentWorker`, reused per branch, output renamed via `zeebe:output` | `structuredLoanDocument` / `unstructuredLoanDocument` / `imageLoanDocument` (native Zeebe document-reference variables), `*DocumentStoredAt` |
+| `io.camunda:idp-extraction-connector-template:1` | Service Task (**Connector**, ×3: `Activity_0wvd79i` "Extract Structured", `Activity_1mydyaq` "Extract Unstructured", `task_extract_image`) | **Camunda IDP Extraction connector** (`connectors` service, AWS Textract OCR + AWS Bedrock, no Java worker) | `extractedDataResponseStructured` / `Unstructured` / `Image` (via `resultExpression` — raw `response.extractedFields` passthrough, except Image's which is stale), `idpExtractionResultStructured` / `Unstructured` / `Image` (raw `ExtractionResult`, via `resultVariable`) |
+| `idp.print-extraction-result` | Service Task (×3: `task_print_structured`, `task_print_unstructured`, `task_print_image`) | `PrintExtractionResultWorker` (one job type, reused per branch, disambiguated by `templateLabel`) | none — logs `idpExtractionResult*` + `extractedDataResponse*` for that branch |
+| DMN: `idp-confidence-rules` | **Business Rule Task** — *unwired, orphaned* | **Zeebe DMN engine** (no Java worker) | `reviewRequired` (`true`/`false`) |
+| `idp.register-loan` | Service Task — *unwired, orphaned* | `RegisterLoanFromDocumentWorker` | `loanId`, `loanRegistered=true`, `registeredAt` |
 
-> The **Business Rule Task** uses `zeebe:calledDecision` (not `zeebe:taskDefinition`) — it calls
-> `idp-confidence-rules.dmn` directly, same pattern as the Loan Risk Assessment process. Since the
-> table has a single output column, `reviewRequired` is bound directly to the boolean result (no
-> wrapper object).
-
-**User Task:** `task_review_extracted_data` (assignee: `loan-officer`) — intercepted by `UserTaskInterceptorWorker` like the other job-based user tasks; completed via `POST /api/tasks/{taskKey}/loan-document-review`, which overwrites `extractedDataResponse` with the corrected values and sets `confidence=1.0`.
-
-**Document Storage:** No custom storage worker or S3/Blob simulation is used — `StoreLoanDocumentWorker` uploads the file straight into **Camunda's own Document Store**, and the resulting `loanDocument` reference (documentId, storeId, contentHash, metadata) is passed around as a normal process variable, visible/downloadable from **Operate** and eligible for a Camunda Forms document-preview component in **Tasklist**.
+**Document Storage:** No custom storage worker or S3/Blob simulation is used — `StoreLoanDocumentWorker` uploads the file straight into **Camunda's own Document Store**, and the resulting document reference (documentId, storeId, contentHash, metadata) is passed around as a normal process variable, visible/downloadable from **Operate**.
 
 ---
 
@@ -1148,32 +1140,38 @@ curl -X POST {{baseURL}}/api/loans/assess \
 
 ## Loan Document IDP API
 
-> **Process ID:** `loan-document-idp-process`
+> **Process ID:** `loan-document-idp-process` — a **single-document, template-selection harness**;
+> `exportType` picks exactly one of the 3 IDP extraction branches per request, all reading the
+> same `documentPath` (see `docs/intelligent-document-processing.md` for why the two other DTO
+> fields below are currently unused, and other known drift).
 > **Postman variables:** `{{documentId}}` e.g. `DOC-001` · `{{loanNumber}}` e.g. `LN-2026-001`
 > `documentPath` must point to a **real file on the server's local filesystem** (the JVM reads
 > and uploads it) — e.g. `D:\\Loan.pdf` or `D://Loan.pdf` on Windows, `/data/loan.pdf` on Linux.
-> `task_extract_document` calls the real out-of-the-box **Camunda IDP Unstructured Extraction
-> connector** (PDFBox text extraction + AWS Bedrock) — requires `CONNECTORS_SECRETIDP_AWS_ACCESSKEY`
-> and `CONNECTORS_SECRETIDP_AWS_SECRETKEY` set in the `connectors` container's
-> `connector-secrets.txt` (note the `CONNECTORS_SECRET` prefix this connectors-bundle build
-> requires) and a real, text-based PDF document.
+> All 3 branches call the real out-of-the-box **Camunda IDP Extraction connector** (AWS Textract
+> OCR + AWS Bedrock) — requires `CONNECTORS_SECRETIDP_AWS_ACCESSKEY`,
+> `CONNECTORS_SECRETIDP_AWS_SECRETKEY`, `CONNECTORS_SECRETIDP_AWS_BUCKET_NAME` (S3 bucket
+> Textract stages the document to), and `CONNECTORS_SECRETIDP_AWS_REGION` set in the `connectors`
+> container's `connector-secrets.txt` (note the `CONNECTORS_SECRET` prefix this connectors-bundle
+> build requires).
 > See `docs/intelligent-document-processing.md` for the full IDP architecture writeup.
 >
-> For a high-confidence run, put labeled fields clearly in the document, e.g.:
-> ```
-> Borrower Name: John Smith
-> Loan Amount: 350000
-> Property Address: 123 Main Street, New York
-> Closing Date: 2026-08-15
-> ```
-> Bedrock has no native per-field confidence score in this mode; `extractedDataResponse.confidence`
-> is the fraction of the 4 taxonomy fields that came back non-null (4/4 → 1.0 ... 0/4 → 0.0).
+> There's no synchronous result — `/upload` returns immediately with just the process instance
+> key. Check the app logs for `[IDP][PrintResult]` (one line, from `PrintExtractionResultWorker`)
+> or inspect `extractedDataResponseStructured` / `Unstructured` / `Image` and
+> `idpExtractionResultStructured` / `Unstructured` / `Image` in Camunda Operate — only the
+> variables for the branch actually selected by `exportType` will be populated.
+>
+> ⚠️ The Image branch's `resultExpression` is currently stale (reads a field not in its
+> taxonomy) — its `extractedDataResponseImage` will always come back `null` until that's fixed.
+> See `docs/intelligent-document-processing.md`.
 
 ---
 
-### Upload Loan Document — High Confidence (auto-register)
+### Upload Loan Document — Select a Template via `exportType`
 
-> A clean document with all 4 labeled fields → Bedrock extracts all of them non-null, `extractedDataResponse.confidence=1.0`; the `idp-confidence-rules.dmn` Business Rule Task sets `reviewRequired=false`, routing straight to `RegisterLoanFromDocumentWorker`.
+> `exportType: 0` → Structured, `1` → Unstructured, anything else → Unstructured+Image (default flow). Only the selected branch's Store → Extract → Print runs — `documentPath` is the only file actually used.
+>
+> ⚠️ `unstructuredDocumentPath` and `unstructuredImageDocumentPath` are still `@NotBlank`-required on the request even though the process never reads them (see the caveat above) — the request fails with a 400 if you omit them. Send any non-blank placeholder value until that validation is cleaned up.
 
 ```bash
 curl -X POST {{baseURL}}/api/loan-documents/upload \
@@ -1181,7 +1179,10 @@ curl -X POST {{baseURL}}/api/loan-documents/upload \
   -d '{
     "documentId": "DOC-001",
     "loanNumber": "LN-2026-001",
-    "documentPath": "D://Loan.pdf"
+    "documentPath": "D://Loan.pdf",
+    "unstructuredDocumentPath": "unused",
+    "unstructuredImageDocumentPath": "unused",
+    "exportType": 0
   }'
 ```
 
@@ -1194,41 +1195,6 @@ curl -X POST {{baseURL}}/api/loan-documents/upload \
   "status": "STARTED",
   "message": "Document uploaded — workers will store, extract, and validate the loan document"
 }
-```
-
----
-
-### Upload Loan Document — Trigger Low Confidence (human review)
-
-> A document missing one or more of the 4 labeled fields → confidence drops below 0.9 (e.g. 3/4 → 0.75), so `reviewRequired=true`, routing to `task_review_extracted_data` (assignee: `loan-officer`). Retrieve `task_review_extracted_data_jobKey` from Camunda Operate and use it as `{{taskKey}}`.
-
-```bash
-curl -X POST {{baseURL}}/api/loan-documents/upload \
-  -H "Content-Type: application/json" \
-  -d '{
-    "documentId": "DOC-002",
-    "loanNumber": "LN-2026-002",
-    "documentPath": "D://loan-scanned.pdf"
-  }'
-```
-
----
-
-### Complete Review Extracted Data (low-confidence path)
-
-> Use `task_review_extracted_data_jobKey` from Camunda Operate as `{{taskKey}}`. Submits the corrected fields as the new `extractedDataResponse` (confidence raised to `1.0`) — `RegisterLoanFromDocumentWorker` runs next.
-
-```bash
-curl -X POST {{baseURL}}/api/tasks/{{taskKey}}/loan-document-review \
-  -H "Content-Type: application/json" \
-  -d '{
-    "borrowerName": "John Smith",
-    "loanNumber": "LN-2026-002",
-    "propertyAddress": "123 Main Street, New York",
-    "loanAmount": 350000,
-    "closingDate": "2026-08-15",
-    "reviewNote": "Corrected borrower name spelling from OCR misread"
-  }'
 ```
 
 ---

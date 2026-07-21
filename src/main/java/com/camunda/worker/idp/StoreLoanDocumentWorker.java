@@ -72,7 +72,7 @@ public class StoreLoanDocumentWorker {
                     loanDocument.getStoreId());
 
             client.newCompleteCommand(job.getKey())
-                    .variables(Map.of("loanDocument", loanDocument, "documentStoredAt", System.currentTimeMillis()))
+                    .variables(Map.of("document", loanDocument, "documentStoredAt", System.currentTimeMillis()))
                     .send()
                     .join();
 

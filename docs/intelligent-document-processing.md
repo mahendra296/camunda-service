@@ -25,39 +25,108 @@ Camunda coordinates the workflow and calls that provider through the connector:
 
 ## Implementation in this repository
 
-`loan-document-idp-process.bpmn` → `task_extract_document` is wired directly to the real
-connector, not a custom worker:
+`loan-document-idp-process.bpmn` is a **single-document, template-selection harness**, not a
+parallel comparison anymore. `gw_parallel_split`/`gw_parallel_join` are **exclusive gateways**
+(despite the `gw_parallel_*` element IDs — a naming leftover from an earlier parallel-gateway
+design that hasn't been renamed) — exactly **one** of the 3 branches runs per process instance,
+selected by the `exportType` process variable:
+
+| `exportType` | Branch taken | Extraction task |
+|---|---|---|
+| `0` | Structured | `Activity_0wvd79i` (name: "Extract Structured") |
+| `1` | Unstructured | `Activity_1mydyaq` (name: "Extract Unstructured") |
+| anything else (default flow) | Unstructured + Image | `task_extract_image` |
+
+The earlier single-branch pipeline (`task_evaluate_confidence` → `task_review_extracted_data` →
+`task_register_loan`) is still not wired into this process; those elements/workers/DMN remain
+orphaned, not deleted — see [the note at the end of this section](#orphaned-elements).
+
+**Only one document path is sent per request, regardless of branch.** `LoanDocumentUploadRequest`
+still declares 3 path fields (`documentPath`, `unstructuredDocumentPath`,
+`unstructuredImageDocumentPath`), but `LoanDocumentService.buildVariables()` only forwards
+`documentPath` as a process variable — the other two are accepted by the API but never read.
+All 3 `idp.store-document` tasks map `=documentPath` → `documentPath` regardless of which branch
+they're in, so whichever single file you send is the one the selected branch stores and extracts.
+This is a real inconsistency worth cleaning up (either drop the two unused DTO fields, or start
+forwarding all 3 and have each branch read its own) — flagged here rather than silently
+"fixed", since the correct direction depends on whether you still want per-branch files later.
+The two unused fields are still `@NotBlank`-validated, though, so requests currently have to send
+placeholder values for them or the API rejects the request with a 400 before it ever reaches the
+process.
+
+All 3 branches share:
 
 | | |
 |---|---|
-| Job type | `io.camunda:idp-unstructured-connector-template:1` |
-| Runtime | `connectors` service (`camunda/connectors-bundle`) in `docker-compose-full.yaml` |
-| Text extraction | Apache PDFBox, local, no AWS OCR call — the PDF has real embedded text |
-| Field extraction | AWS Bedrock (`amazon.nova-micro-v1:0`, region `us-east-1`) reads the raw text and maps it onto 4 taxonomy fields (`borrowerName`, `propertyAddress`, `loanAmount`, `closingDate`), each with a natural-language prompt |
-| Secrets required | `IDP_AWS_ACCESSKEY`, `IDP_AWS_SECRETKEY` in `connector-secrets.txt` (prefixed `CONNECTORS_SECRET`, see below) |
-| Output | `idpExtractionResult` (raw connector response, via `resultVariable`), `extractedDataResponse` (via `resultExpression`) — `borrowerName`, `propertyAddress`, `loanAmount`, `closingDate`, `confidence` only, deliberately **no** `loanNumber` |
+| Job type (extraction) | `io.camunda:idp-extraction-connector-template:1` |
+| Job type (store) | `idp.store-document` (`StoreLoanDocumentWorker` — completes with a `document` variable, not `loanDocument`; each branch's task renames it via `zeebe:output` to `structuredLoanDocument` / `unstructuredLoanDocument` / `imageLoanDocument`) |
+| Job type (print) | `idp.print-extraction-result` (`PrintExtractionResultWorker` — one job type, reused per branch, disambiguated by `templateLabel`) |
+| Runtime | `connectors` service (`camunda/connectors-bundle`) |
+| Text extraction (OCR) | AWS Textract (`baseRequest.extractionEngineType=AWS_TEXTRACT`), document staged from Camunda's document store to the `IDP_AWS_BUCKET_NAME` S3 bucket |
+| Secrets required | `IDP_AWS_ACCESSKEY`, `IDP_AWS_SECRETKEY`, `IDP_AWS_BUCKET_NAME`, `IDP_AWS_REGION` in `connector-secrets.txt` (prefixed `CONNECTORS_SECRET`, see below) |
+
+**The exact taxonomy/fields per branch are in active flux** (they're being iterated on directly
+in Web Modeler's IDP app and change frequently), so this doc intentionally does not pin an exact
+field list — check each task's `input.taxonomyItems` (Unstructured/Image) or
+`input.includedFields` (Structured) in the BPMN for what's currently configured. Two things to
+watch for whenever those fields change:
+
+- **`resultExpression` does not update itself when the taxonomy changes.** Right now Structured
+  and Unstructured both use a raw passthrough (`={extractedDataResponseStructured:
+  response.extractedFields}` / same for Unstructured) so they always reflect whatever fields the
+  connector actually returns — safe against taxonomy drift. **Image's `resultExpression` was not
+  updated the same way** — it's still hardcoded to `response.extractedFields.loanAmount`, a field
+  that isn't in its current taxonomy (`userName`, `dateOfBirth`, `email`,
+  `isSignatureUploaded`) — so `extractedDataResponseImage` will currently always be `null`. Fix
+  it to `={extractedDataResponseImage: response.extractedFields}` (matching the other two) or to
+  whatever specific fields actually matter, once decided.
+- **No branch currently computes a `confidence` score.** All 3 `resultExpression`s were
+  simplified to raw passthrough — there's no non-null-field-count calculation anymore. If a
+  confidence-gated review step gets reattached later, that calculation needs to be added back in.
 
 Non-obvious things learned the hard way while wiring this up, worth knowing before touching this
 task again:
 
-1. **STRUCTURED mode (Amazon Textract Forms) does not work on this kind of document.** It was
-   the first thing tried, since it returns real per-field confidence scores. It returned zero
-   extracted fields against a plain PDF with `Label: value` text lines, because Textract's Forms
+1. **STRUCTURED mode (Amazon Textract Forms) does not work on freeform "Label: value" text
+   documents.** It returns zero extracted fields against that shape, because Textract's Forms
    detector is a spatial/visual form-field detector for scanned/boxed forms, not a text parser.
-   UNSTRUCTURED mode (Bedrock reading raw text against a taxonomy prompt) is the correct method
-   for this document shape — the tradeoff is no native per-field confidence, so
-   `extractedDataResponse.confidence` is derived instead as (# of the 4 taxonomy fields that came
-   back non-null) / 4.
-2. **`resultExpression`'s FEEL scope only ever exposes `response`** (the connector's own output)
+   UNSTRUCTURED mode (an LLM reading raw text against taxonomy prompts) is the correct method for
+   that document shape; STRUCTURED mode is the right choice only for genuinely boxed/labeled
+   forms, matched via `input.includedFields` literal label text (not `taxonomyItems` prompts).
+2. **`extractionType` and `extractionEngineType` are two different axes, easy to conflate.**
+   `baseRequest.extractionEngineType` picks the OCR/text-extraction backend (`AWS_TEXTRACT`,
+   `GCP_DOCUMENT_AI`, etc. — how raw text gets out of the document). `input.extractionType`
+   picks how fields get derived from that text: `"STRUCTURED"` matches literal label text via
+   `input.includedFields`/`input.renameMappings` and ignores `taxonomyItems`/`converseData`
+   entirely (no LLM step); `"UNSTRUCTURED"` hands the raw text to an LLM (`converseData.modelId`)
+   which maps it onto `taxonomyItems` prompts.
+3. **Applying/reconfiguring an element template from Web Modeler's IDP app resets unfilled
+   fields to a broken self-referencing FEEL expression** (e.g. `= input.extractionType`,
+   evaluating a process variable literally named `input` that doesn't exist) — and this happens
+   **every time** the template is reapplied or its config panel is touched again, not just the
+   first time. As of this writing, both `Activity_1mydyaq` (Unstructured) and `task_extract_image`
+   have `input.extractionType` reset to this broken placeholder (should be a literal
+   `="UNSTRUCTURED"`) — check and fix it after every Web Modeler edit before deploying, don't
+   assume a previous fix stuck.
+4. **`resultExpression`'s FEEL scope only ever exposes `response`** (the connector's own output)
    — no other process variables, however they're named or however many `zeebe:input` mappings try
-   to smuggle them in as job-local variables. `loanNumber` is therefore **not** built into
-   `extractedDataResponse` here — it doesn't need to be, since it's already visible on its own as
-   a top-level process variable in Operate/Tasklist. If a future field genuinely needs a
-   non-`response` value inside the connector's output object, do it with a regular `zeebe:output`
-   mapping on the task instead (that one does have full process-variable scope) — just know that
-   Web Modeler's own IDP configuration panel only ever writes `resultExpression`, so a
-   `zeebe:output` addition will get silently dropped the next time this task is reconfigured
-   through that UI rather than by hand-editing the BPMN.
+   to smuggle them in as job-local variables. A process variable that needs to end up alongside
+   the extraction result has to be read from its own top-level variable downstream instead — it
+   can't be nested into `extractedDataResponse*` via `resultExpression`. If a value genuinely
+   needs to live inside the connector's output object, use a regular `zeebe:output` mapping on the
+   task instead (that one does have full process-variable scope) — just know Web Modeler's own IDP
+   configuration panel only ever writes `resultExpression`, so a `zeebe:output` addition gets
+   silently dropped the next time the task is reconfigured through that UI rather than by
+   hand-editing the BPMN.
+
+### Orphaned elements
+
+Removing the single-branch tail from `loan-document-idp-process.bpmn` left these Java/DMN files
+unused but **not deleted** (nothing else in the codebase references them, confirmed by search):
+`RegisterLoanFromDocumentWorker.java` (`idp.register-loan`), `idp-confidence-rules.dmn`, and the
+`UserTaskService`/`UserTaskController` methods that complete the old `task_review_extracted_data`
+user task. They're left in place in case the loan-registration tail gets reattached to this or
+another process later — delete them explicitly if that's not the plan.
 
 Secret naming: this connectors-bundle build's `EnvironmentSecretProvider` only exposes env vars
 prefixed `CONNECTORS_SECRET` (no separator) as connector secrets. `{{secrets.IDP_AWS_ACCESSKEY}}`

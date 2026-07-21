@@ -15,9 +15,25 @@ public class LoanDocumentUploadRequest {
     private String loanNumber;
 
     /**
-     * Absolute local filesystem path to the document to process, e.g.
-     * {@code D:\\Loan.pdf} or {@code D://Loan.pdf}. Supported formats: .pdf, .docx, .txt.
+     * Absolute local filesystem path to the document for the "Structured PDF Extract" branch
+     * (boxed/scanned forms, native field detection).
      */
     @NotBlank(message = "documentPath is required")
     private String documentPath;
+
+    /**
+     * Absolute local filesystem path to the document for the "Unstructured PDF Extract" branch
+     * (freeform, text-native PDFs, LLM-mapped taxonomy).
+     */
+    @NotBlank(message = "unstructuredDocumentPath is required")
+    private String unstructuredDocumentPath;
+
+    /**
+     * Absolute local filesystem path to the document for the "Unstructured PDF With Image
+     * Extract" branch (scanned/photographed PDFs with no embedded text).
+     */
+    @NotBlank(message = "unstructuredImageDocumentPath is required")
+    private String unstructuredImageDocumentPath;
+
+    private int exportType;
 }

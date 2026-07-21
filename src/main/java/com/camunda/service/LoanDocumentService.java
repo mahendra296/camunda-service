@@ -20,7 +20,7 @@ public class LoanDocumentService {
 
     public LoanDocumentProcessResponse startProcessing(LoanDocumentUploadRequest request) {
         log.info(
-                "[LoanDocumentService] Starting IDP processing documentId={} loanNumber={} documentPath={}",
+                "[LoanDocumentService] Starting IDP processing documentId={} loanNumber={} document={}",
                 request.getDocumentId(),
                 request.getLoanNumber(),
                 request.getDocumentPath());
@@ -54,6 +54,7 @@ public class LoanDocumentService {
         vars.put("loanNumber", request.getLoanNumber());
         vars.put("documentPath", request.getDocumentPath());
         vars.put("uploadedAt", System.currentTimeMillis());
+        vars.put("exportType", request.getExportType());
         return vars;
     }
 }
