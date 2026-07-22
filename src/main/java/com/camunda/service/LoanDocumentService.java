@@ -26,17 +26,19 @@ public class LoanDocumentService {
                 request.getDocumentPath());
 
         var variables = buildVariables(request);
+        var bpmnProcessId = resolveBpmnProcessId(request.getExportType());
 
         ProcessInstanceEvent event = camundaClient
                 .newCreateInstanceCommand()
-                .bpmnProcessId("loan-document-idp-process")
+                .bpmnProcessId(bpmnProcessId)
                 .latestVersion()
                 .variables(variables)
                 .send()
                 .join();
 
         log.info(
-                "[LoanDocumentService] Process started. instanceKey={} documentId={}",
+                "[LoanDocumentService] Process started. bpmnProcessId={} instanceKey={} documentId={}",
+                bpmnProcessId,
                 event.getProcessInstanceKey(),
                 request.getDocumentId());
 
@@ -48,6 +50,17 @@ public class LoanDocumentService {
     }
 
     // ──────────────────────────────────────────────
+    // loan-document-idp-process.bpmn was split into 3 standalone processes, one per IDP
+    // template; the exportType-based routing that used to be an in-process exclusive gateway
+    // now happens here instead, picking which process definition to start.
+    private String resolveBpmnProcessId(int exportType) {
+        return switch (exportType) {
+            case 0 -> "structured-document-extract-idp";
+            case 1 -> "unstructured-document-extract-idp";
+            default -> "unstructured-with-image-document-extract-idp";
+        };
+    }
+
     private Map<String, Object> buildVariables(LoanDocumentUploadRequest request) {
         var vars = new HashMap<String, Object>();
         vars.put("documentId", request.getDocumentId());

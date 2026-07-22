@@ -28,6 +28,13 @@ spring:
 server:
   port: 8081
 
+# ── IDP ──────────────────────────────────────────────────────────────────────
+# ExtractPdfRegionWorker shells out to pdftoppm (poppler-utils). Override with an absolute
+# path via IDP_PDFTOPPM_PATH if it's not on this process's PATH (e.g. right after installing
+# poppler — a PATH env var update doesn't apply to an already-running process).
+idp:
+  pdftoppm-path: ${IDP_PDFTOPPM_PATH:pdftoppm}
+
 # ── Camunda 8 Local (Self-Managed) ───────────────────────────────────────────
 # The docker-compose-full.yaml stack (camunda-distributions/docker-compose/versions/camunda-8.9)
 # secures the orchestration cluster with OIDC via Keycloak. Values come from the active profile

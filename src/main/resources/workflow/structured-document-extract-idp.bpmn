@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_StructuredDocumentExtractIdp" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.49.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.8.0">
+  <bpmn:process id="structured-document-extract-idp" name="Structured Document Extract IDP" isExecutable="true">
+    <bpmn:startEvent id="start_event_document_uploaded" name="Document&#10;Uploaded">
+      <bpmn:outgoing>flow_start_to_extract_region</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="task_store_document" name="Read the pdf and store content into camunda">
+      <bpmn:documentation>Uploads the file at documentPath into Camunda's Document Store via
+StoreLoanDocumentWorker (idp.store-document). Output: loanDocument, documentStoredAt.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="idp.store-document" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=documentPath" target="documentPath" />
+          <zeebe:output source="=document" target="structuredLoanDocument" />
+          <zeebe:output source="=documentStoredAt" target="structuredDocumentStoredAt" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_start_to_extract_region</bpmn:incoming>
+      <bpmn:outgoing>flow_store_to_extract</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_print_document" name="Log Response">
+      <bpmn:documentation>Logs idpExtractionResult + extractedDataResponse via PrintExtractionResultWorker
+(idp.print-extraction-result).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="idp.print-extraction-result" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;Structured PDF Extract&#34;" target="templateLabel" />
+          <zeebe:input source="=idpExtractionResultStructured" target="extractionResult" />
+          <zeebe:input source="=extractedDataResponseStructured" target="extractedData" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_08i893h</bpmn:incoming>
+      <bpmn:outgoing>flow_print_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_extraction_complete" name="Extraction&#10;Complete">
+      <bpmn:incoming>flow_print_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_start_to_extract_region" sourceRef="start_event_document_uploaded" targetRef="task_store_document" />
+    <bpmn:sequenceFlow id="flow_store_to_extract" sourceRef="task_store_document" targetRef="Activity_14fnk9k" />
+    <bpmn:sequenceFlow id="flow_print_to_end" sourceRef="task_print_document" targetRef="end_extraction_complete" />
+    <bpmn:serviceTask id="Activity_14fnk9k" name="Extract Personal Information" zeebe:modelerTemplate="idp-structured-extraction-connector-7a95e311-f079-424d-9835-591eac24b6de" zeebe:modelerTemplateVersion="5" zeebe:modelerTemplateIcon="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjE5LjE3ODkiIGhlaWdodD0iMTkuMTc4OSIgZmlsbD0id2hpdGUiIGZpbGwtb3BhY2l0eT0iMC4wMSIgc3R5bGU9Im1peC1ibGVuZC1tb2RlOm11bHRpcGx5Ii8+CjxwYXRoIGQ9Ik0xNi43ODA2IDcuMTkyMDhIMTEuOTg1OVYyLjM5NzM3SDE2Ljc4MDZWNy4xOTIwOFpNMTMuMTg0NiA1Ljk5MzRIMTUuNTgxOVYzLjU5NjA1SDEzLjE4NDZWNS45OTM0WiIgZmlsbD0iI0ZDNUQwRCIvPgo8cGF0aCBkPSJNMTAuMTg3OSA4Ljk5MDFWNS4zOTQwN0g1LjM5MzE4VjEzLjc4NDhIMTMuNzgzOVY4Ljk5MDFIMTAuMTg3OVpNNi41OTE4NiA2LjU5Mjc0SDguOTg5MjFWOC45OTAxSDYuNTkxODZWNi41OTI3NFpNOC45ODkyMSAxMi41ODYxSDYuNTkxODZWMTAuMTg4OEg4Ljk4OTIxVjEyLjU4NjFaTTEyLjU4NTIgMTIuNTg2MUgxMC4xODc5VjEwLjE4ODhIMTIuNTg1MlYxMi41ODYxWiIgZmlsbD0iI0ZDNUQwRCIvPgo8cGF0aCBkPSJNMTUuNTgxOSAxNi43ODE1SDMuNTk1MTZDMy4yNzczNyAxNi43ODExIDIuOTcyNjkgMTYuNjU0NyAyLjc0Nzk3IDE2LjQzQzIuNTIzMjYgMTYuMjA1MyAyLjM5Njg1IDE1LjkwMDYgMi4zOTY0OCAxNS41ODI4VjMuNTk2MDVDMi4zOTY4NSAzLjI3ODI1IDIuNTIzMjYgMi45NzM1NyAyLjc0Nzk3IDIuNzQ4ODZDMi45NzI2OSAyLjUyNDE0IDMuMjc3MzcgMi4zOTc3MyAzLjU5NTE2IDIuMzk3MzdIOS41ODg1NVYzLjU5NjA1SDMuNTk1MTZWMTUuNTgyOEgxNS41ODE5VjkuNTg5NDRIMTYuNzgwNlYxNS41ODI4QzE2Ljc4MDMgMTUuOTAwNiAxNi42NTM5IDE2LjIwNTMgMTYuNDI5MSAxNi40M0MxNi4yMDQ0IDE2LjY1NDcgMTUuODk5NyAxNi43ODExIDE1LjU4MTkgMTYuNzgxNVoiIGZpbGw9IiMxNjE2MTYiLz4KPC9zdmc+Cg==">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda:idp-extraction-connector-template:1" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=structuredLoanDocument" target="input.document" />
+          <zeebe:input source="STRUCTURED" target="input.extractionType" />
+          <zeebe:input source="= input.taxonomyItems" target="input.taxonomyItems" />
+          <zeebe:input source="=[&#10;  &#34;Residential Address&#34;,&#10;  &#34;Profile Photo&#34;,&#10;  &#34;Membership ID&#34;,&#10;  &#34;Full Name&#34;,&#10;  &#34;Blood Group&#34;,&#10;  &#34;Gender&#34;,&#10;  &#34;Date of Birth&#34;,&#10;  &#34;Emergency Contact Name&#34;,&#10;  &#34;Emergency Contact Number&#34;,&#10;  &#34;Email Address&#34;,&#10;  &#34;Mobile Number&#34;&#10;]" target="input.includedFields" />
+          <zeebe:input source="={ }" target="input.renameMappings" />
+          <zeebe:input source="= input.delimiter" target="input.delimiter" />
+          <zeebe:input source="= input.converseData" target="input.converseData" />
+          <zeebe:input source="aws" target="baseRequest.type" />
+          <zeebe:input source="credentials" target="baseRequest.authentication.type" />
+          <zeebe:input source="{{secrets.IDP_AWS_ACCESSKEY}}" target="baseRequest.authentication.accessKey" />
+          <zeebe:input source="{{secrets.IDP_AWS_SECRETKEY}}" target="baseRequest.authentication.secretKey" />
+          <zeebe:input source="{{secrets.IDP_AWS_BUCKET_NAME}}" target="baseRequest.s3BucketName" />
+          <zeebe:input source="AWS_TEXTRACT" target="baseRequest.extractionEngineType" />
+          <zeebe:input source="{{secrets.IDP_AWS_REGION}}" target="baseRequest.configuration.region" />
+        </zeebe:ioMapping>
+        <zeebe:taskHeaders>
+          <zeebe:header key="elementTemplateVersion" value="2" />
+          <zeebe:header key="elementTemplateId" value="io.camunda.connector.IdpExtractionOutBoundTemplate.v1" />
+          <zeebe:header key="resultVariable" value="idpExtractionResultStructured" />
+          <zeebe:header key="resultExpression" value="={extractedDataResponseStructured: response.extractedFields}" />
+          <zeebe:header key="errorExpression" />
+          <zeebe:header key="retryBackoff" value="PT0S" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_store_to_extract</bpmn:incoming>
+      <bpmn:outgoing>Flow_08i893h</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_08i893h" sourceRef="Activity_14fnk9k" targetRef="task_print_document" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="structured-document-extract-idp">
+      <bpmndi:BPMNShape id="start_event_document_uploaded_di" bpmnElement="start_event_document_uploaded">
+        <dc:Bounds x="160" y="122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="153" y="165" width="51" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_store_document_di" bpmnElement="task_store_document">
+        <dc:Bounds x="315" y="100" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task_print_document_di" bpmnElement="task_print_document">
+        <dc:Bounds x="740" y="100" width="110" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_extraction_complete_di" bpmnElement="end_extraction_complete">
+        <dc:Bounds x="900" y="122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="894" y="165" width="49" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_14fnk9k_di" bpmnElement="Activity_14fnk9k">
+        <dc:Bounds x="540" y="100" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_start_to_extract_region_di" bpmnElement="flow_start_to_extract_region">
+        <di:waypoint x="196" y="140" />
+        <di:waypoint x="315" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_store_to_extract_di" bpmnElement="flow_store_to_extract">
+        <di:waypoint x="425" y="140" />
+        <di:waypoint x="540" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_print_to_end_di" bpmnElement="flow_print_to_end">
+        <di:waypoint x="850" y="140" />
+        <di:waypoint x="900" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_08i893h_di" bpmnElement="Flow_08i893h">
+        <di:waypoint x="640" y="140" />
+        <di:waypoint x="740" y="140" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

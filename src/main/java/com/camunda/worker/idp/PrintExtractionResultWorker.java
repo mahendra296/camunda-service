@@ -9,10 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * Logs the IDP extraction result for one branch of the three-way template comparison in
- * loan-document-idp-process.bpmn (Structured / Unstructured / Unstructured+Image). Reused across
- * all three "print" nodes — each node's zeebe:input mapping supplies its own templateLabel and
- * result variables, so a single job type covers all three branches.
+ * Logs the IDP extraction result for whichever template ran: structured-document-extract-idp,
+ * unstructured-document-extract-idp, or unstructured-with-image-document-extract-idp.bpmn. Reused
+ * across all three processes' "Print Result" task — each task's zeebe:input mapping supplies its
+ * own templateLabel and result variables, so a single job type covers all three.
  */
 @Slf4j
 @Component
