@@ -10,7 +10,7 @@ StoreLoanDocumentWorker (idp.store-document). Output: loanDocument, documentStor
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="idp.store-document" retries="3" />
         <zeebe:ioMapping>
-          <zeebe:output source="=document" target="imageLoanDocument" />
+          <zeebe:output source="=document" target="imageDocument" />
           <zeebe:output source="=documentStoredAt" target="imageDocumentStoredAt" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -41,7 +41,7 @@ StoreLoanDocumentWorker (idp.store-document). Output: loanDocument, documentStor
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="io.camunda:idp-extraction-connector-template:1" retries="3" />
         <zeebe:ioMapping>
-          <zeebe:input source="=imageLoanDocument" target="input.document" />
+          <zeebe:input source="=imageDocument" target="input.document" />
           <zeebe:input source="= input.extractionType" target="input.extractionType" />
           <zeebe:input source="=[&#10;  {&#10;    &#34;prompt&#34;: &#34;Find the user name from the file&#34;,&#10;    &#34;name&#34;: &#34;userName&#34;&#10;  },&#10;  {&#10;    &#34;prompt&#34;: &#34;find the date of birth of user&#34;,&#10;    &#34;name&#34;: &#34;dateOfBirth&#34;&#10;  },&#10;  {&#10;    &#34;prompt&#34;: &#34;find the email of user&#34;,&#10;    &#34;name&#34;: &#34;email&#34;&#10;  },&#10;  {&#10;    &#34;prompt&#34;: &#34;if there is image of signature or a signature present then it should return true otherwise false&#34;,&#10;    &#34;name&#34;: &#34;isSignatureUploaded&#34;&#10;  }&#10;]" target="input.taxonomyItems" />
           <zeebe:input source="= input.includedFields" target="input.includedFields" />

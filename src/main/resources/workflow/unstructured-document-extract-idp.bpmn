@@ -10,7 +10,7 @@ StoreLoanDocumentWorker (idp.store-document). Output: loanDocument, documentStor
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="idp.store-document" retries="3" />
         <zeebe:ioMapping>
-          <zeebe:output source="=document" target="unstructuredLoanDocument" />
+          <zeebe:output source="=document" target="unstructuredDocument" />
           <zeebe:output source="=documentStoredAt" target="unstructuredDocumentStoredAt" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -41,7 +41,7 @@ StoreLoanDocumentWorker (idp.store-document). Output: loanDocument, documentStor
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="io.camunda:idp-extraction-connector-template:1" retries="3" />
         <zeebe:ioMapping>
-          <zeebe:input source="=unstructuredLoanDocument" target="input.document" />
+          <zeebe:input source="=unstructuredDocument" target="input.document" />
           <zeebe:input source="= input.extractionType" target="input.extractionType" />
           <zeebe:input source="=[&#10;  {&#10;    &#34;prompt&#34;: &#34;if there is image of signature or a signature present then it should return true otherwise false&#34;,&#10;    &#34;name&#34;: &#34;isSignedUploaded&#34;&#10;  },&#10;  {&#10;    &#34;prompt&#34;: &#34;find the date of birth of user&#34;,&#10;    &#34;name&#34;: &#34;birthDate&#34;&#10;  },&#10;  {&#10;    &#34;prompt&#34;: &#34;find the email of user&#34;,&#10;    &#34;name&#34;: &#34;email&#34;&#10;  },&#10;  {&#10;    &#34;prompt&#34;: &#34;find the mobile number of user&#34;,&#10;    &#34;name&#34;: &#34;mobileNumber&#34;&#10;  }&#10;]" target="input.taxonomyItems" />
           <zeebe:input source="= input.includedFields" target="input.includedFields" />

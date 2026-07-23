@@ -6,7 +6,7 @@ DATASOURCE_PASSWORD: root
 
 # ── IDP ──────────────────────────────────────────────────────────────────────
 # Absolute path so it works regardless of whether this shell picked up the winget PATH update yet.
-IDP_PDFTOPPM_PATH: C:\Users\mahendra\AppData\Local\Microsoft\WinGet\Packages\oschwartz10612.Poppler_Microsoft.Winget.Source_8wekyb3d8bbwe\poppler-25.07.0\Library\bin\pdftoppm.exe
+IDP_PDFTOPPM_PATH: D:\Software\poppler-26.02.0\Library\bin\pdftoppm.exe
 
 # ── Camunda 8 client OIDC auth ───────────────────────────────────────────────
 # From camunda-distributions/docker-compose/versions/camunda-8.9/.env

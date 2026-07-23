@@ -11,7 +11,7 @@ StoreLoanDocumentWorker (idp.store-document). Output: loanDocument, documentStor
         <zeebe:taskDefinition type="idp.store-document" retries="3" />
         <zeebe:ioMapping>
           <zeebe:input source="=documentPath" target="documentPath" />
-          <zeebe:output source="=document" target="structuredLoanDocument" />
+          <zeebe:output source="=document" target="structuredDocument" />
           <zeebe:output source="=documentStoredAt" target="structuredDocumentStoredAt" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -42,7 +42,7 @@ StoreLoanDocumentWorker (idp.store-document). Output: loanDocument, documentStor
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="io.camunda:idp-extraction-connector-template:1" retries="3" />
         <zeebe:ioMapping>
-          <zeebe:input source="=structuredLoanDocument" target="input.document" />
+          <zeebe:input source="=structuredDocument" target="input.document" />
           <zeebe:input source="STRUCTURED" target="input.extractionType" />
           <zeebe:input source="= input.taxonomyItems" target="input.taxonomyItems" />
           <zeebe:input source="=[&#10;  &#34;Residential Address&#34;,&#10;  &#34;Profile Photo&#34;,&#10;  &#34;Membership ID&#34;,&#10;  &#34;Full Name&#34;,&#10;  &#34;Blood Group&#34;,&#10;  &#34;Gender&#34;,&#10;  &#34;Date of Birth&#34;,&#10;  &#34;Emergency Contact Name&#34;,&#10;  &#34;Emergency Contact Number&#34;,&#10;  &#34;Email Address&#34;,&#10;  &#34;Mobile Number&#34;&#10;]" target="input.includedFields" />

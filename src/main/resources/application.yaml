@@ -34,6 +34,9 @@ server:
 # poppler — a PATH env var update doesn't apply to an already-running process).
 idp:
   pdftoppm-path: ${IDP_PDFTOPPM_PATH:pdftoppm}
+  crop-region:
+    default-width: ${IDP_CROP_DEFAULT_WIDTH:300}
+    default-height: ${IDP_CROP_DEFAULT_HEIGHT:150}
 
 # ── Camunda 8 Local (Self-Managed) ───────────────────────────────────────────
 # The docker-compose-full.yaml stack (camunda-distributions/docker-compose/versions/camunda-8.9)
