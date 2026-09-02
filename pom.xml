@@ -110,6 +110,27 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- Camunda Process Test (CPT) — plain JUnit 5 process/diagram testing -->
+		<dependency>
+			<groupId>io.camunda</groupId>
+			<artifactId>camunda-process-test-java</artifactId>
+			<version>8.8.14</version>
+			<scope>test</scope>
+		</dependency>
+
+		<!--
+			camunda-process-test-java:8.8.14 pulls a mismatched pair: org.testcontainers:testcontainers:1.20.5
+			alongside org.testcontainers:testcontainers-elasticsearch:2.0.3. The older 1.20.5 core doesn't
+			speak to newer Docker Desktop engine builds (npipe /info comes back as an empty stub). Pin the
+			core module to match the elasticsearch module until upstream fixes the mismatch.
+		-->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers</artifactId>
+			<version>2.0.3</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
