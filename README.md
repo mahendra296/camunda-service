@@ -18,6 +18,7 @@ A Spring Boot + Camunda 8 service that orchestrates multiple business processes 
    - [Loan Document IDP API](#loan-document-idp-api)
    - [Multi-Instance Demo API](#multi-instance-demo-api)
    - [Payment & Refund API](#payment--refund-api)
+6. [Testing](#testing)
 
 ---
 
@@ -52,103 +53,20 @@ Each **service task** in the BPMN has a `type` (job type). Zeebe creates a job w
 
 ```
 src/main/java/com/camunda/
-├── controller/
-│   ├── OrderProcessController.java         ← Order & message endpoints
-│   ├── UserTaskController.java             ← User task completion endpoints
-│   ├── AirtelLoanController.java           ← Airtel loan initiation endpoint
-│   ├── LoanRiskAssessmentController.java   ← POST /api/loans/assess
-│   ├── LoanApplicationFormController.java  ← POST /api/loan-forms/start, /{taskKey}/submit
-│   ├── LoanDocumentController.java         ← POST /api/loan-documents/upload
-│   └── DemoProcessController.java          ← POST /api/demo/start
-├── service/
-│   ├── OrderProcessService.java            ← Process instance & message logic
-│   ├── UserTaskService.java                ← Job completion via JobClient
-│   ├── AirtelLoanService.java              ← Starts airtel-loan-capbpm-process
-│   ├── LoanRiskAssessmentService.java      ← Starts loan-risk-assessment-process
-│   ├── LoanApplicationFormService.java     ← Starts loan-application-form-process
-│   ├── LoanDocumentService.java            ← Starts loan-document-idp-process
-│   └── DemoProcessService.java             ← Starts multi-instance-demo-process
-├── worker/
-│   ├── UserTaskInterceptorWorker.java      ← io.camunda.zeebe:userTask — stores jobKey as variable
-│   ├── ValidateOrderWorker.java            ← order.validate
-│   ├── CheckInventoryWorker.java           ← order.check-inventory
-│   ├── ReserveInventoryWorker.java         ← order.reserve-inventory
-│   ├── ProcessPaymentWorker.java           ← order.process-payment
-│   ├── HandlePaymentFailureWorker.java     ← order.handle-payment-failure
-│   ├── NotifyPaymentFailedWorker.java      ← order.notify-payment-failed
-│   ├── SendRejectionWorker.java            ← order.send-rejection
-│   ├── NotifyBackorderWorker.java          ← order.notify-backorder
-│   ├── SendConfirmationWorker.java         ← order.send-confirmation
-│   ├── PrepareShipmentWorker.java          ← order.prepare-shipment
-│   ├── AssignCarrierWorker.java            ← shipment.assign-carrier
-│   ├── GenerateShippingLabelWorker.java    ← shipment.generate-label
-│   ├── PickPackWorker.java                 ← shipment.pick-pack
-│   ├── DispatchCarrierWorker.java          ← shipment.dispatch
-│   ├── SendDeliveryConfirmationWorker.java ← order.send-delivery-confirmation
-│   ├── ProcessCancellationWorker.java      ← order.process-cancellation
-│   ├── HandleSlaBreachWorker.java          ← order.handle-sla-breach
-│   ├── ReshipOrderWorker.java              ← order.reship
-│   ├── ProcessRefundWorker.java            ← order.process-refund
-│   ├── payment/
-│   │   ├── ReservePaymentWorker.java            ← payment.reserve
-│   │   ├── ChargePaymentWorker.java             ← payment.charge (throws PAYMENT_FAILED BPMN error)
-│   │   ├── SendPaymentConfirmationWorker.java   ← payment.send-confirmation
-│   │   ├── HandlePaymentErrorWorker.java        ← payment.handle-error (error boundary path)
-│   │   ├── SendPaymentFailureNotificationWorker.java ← payment.send-failure-notification
-│   │   ├── ReversePaymentReservationWorker.java ← payment.reverse-reservation (compensation handler)
-│   │   └── ReversePaymentChargeWorker.java      ← payment.reverse-charge (compensation handler)
-│   ├── form/
-│   │   ├── ValidateApplicationDataWorker.java  ← form.validate-application-data
-│   │   ├── SubmitForReviewWorker.java           ← form.submit-for-review
-│   │   └── NotifyIncompleteWorker.java          ← form.notify-incomplete
-│   ├── loan/
-│   │   ├── ValidateLoanApplicationWorker.java  ← loan.validate-application
-│   │   ├── SendRejectionNotificationWorker.java ← loan.send-rejection-notification
-│   │   ├── AutoApproveLoanWorker.java           ← loan.auto-approve
-│   │   └── AutoRejectLoanWorker.java            ← loan.auto-reject
-│   │   (risk evaluation → Zeebe DMN engine, no worker needed)
-│   ├── idp/
-│   │   ├── StoreLoanDocumentWorker.java         ← idp.store-document
-│   │   │   (document extraction → out-of-the-box Camunda IDP connector, no worker needed)
-│   │   └── RegisterLoanFromDocumentWorker.java  ← idp.register-loan
-│   └── demo/
-│       ├── PrepareDataWorker.java          ← demo.prepareData
-│       ├── ProcessLoopWorker.java          ← demo.processLoop
-│       ├── ProcessSequentialWorker.java    ← demo.processSequential
-│       ├── ProcessParallelWorker.java      ← demo.processParallel
-│       └── CollectResultsWorker.java       ← demo.collectResults
-├── dto/
-│   ├── OrderRequest.java
-│   ├── OrderItemDto.java
-│   ├── MessageRequest.java
-│   ├── StartOrderResponse.java
-│   ├── PaymentRequest.java
-│   ├── PaymentResponse.java
-│   ├── AirtelLoanRequest.java
-│   ├── AirtelLoanResponse.java
-│   ├── AirtelKycCallbackRequest.java
-│   ├── AirtelLoanSubmitRequest.java
-│   ├── LoanApplicationRequest.java
-│   ├── LoanAssessmentResponse.java
-│   ├── LoanDocumentUploadRequest.java
-│   ├── LoanDocumentProcessResponse.java
-│   ├── ExtractedLoanDataResponse.java
-│   └── StartDemoResponse.java
-└── exceptions/
-    ├── GlobalExceptionHandler.java
-    ├── OrderNotFoundException.java
-    └── OrderConflictException.java
-src/main/resources/workflow/
-├── order-management-process.bpmn
-├── airtel-loan-process.bpmn
-├── loan-risk-assessment-process.bpmn
-├── loan-risk-rules.dmn
-├── loan-application-form-process.bpmn
-├── loan-application-form.form
-├── loan-document-idp-process.bpmn       ← Loan Document IDP (Document Store + DMN confidence gate)
-├── idp-confidence-rules.dmn             ← Confidence gate for the IDP flow (Business Rule Task)
-├── multi-instance-demo-process.bpmn
-└── payment-refund-process.bpmn         ← Compensation + Error event demo
+├── config/          ← Spring & Camunda configuration beans
+├── controller/      ← REST endpoints (thin — no business logic)
+├── service/         ← Business logic and process orchestration
+├── worker/          ← Camunda job workers (one class per job type; payment/, form/, loan/, idp/, demo/ subpackages)
+├── dto/             ← Request / response data transfer objects
+├── exceptions/      ← Domain exceptions + GlobalExceptionHandler
+└── model/           ← JPA entities and domain models
+
+src/main/resources/
+├── workflow/        ← BPMN processes, DMN decision tables, Camunda forms
+└── db/              ← Liquibase changelogs
+
+src/test/java/com/camunda/
+└── process/         ← Camunda Process Test (CPT) suites — see Testing section
 ```
 
 ---
@@ -1386,3 +1304,44 @@ curl -X POST {{baseURL}}/api/payments/start \
     "paymentMethod": "INVALID"
   }'
 ```
+
+---
+
+## Testing
+
+### Camunda Process Test (CPT)
+
+Process-level tests live under `src/test/java/com/camunda/process/` and use
+[`camunda-process-test-java`](https://docs.camunda.io/docs/next/apis-tools/testing/) — plain JUnit 5 classes
+annotated `@CamundaProcessTest`. Each test class:
+
+1. Spins up a throwaway **Testcontainers** runtime (Camunda 8 broker + Elasticsearch) per class.
+2. Deploys the relevant `.bpmn` / `.dmn` / `.form` resources from the classpath in a `@BeforeEach`.
+3. Drives the process instance forward with `processTestContext.mockJobWorker(...)` (stubbing job workers
+   instead of running the real ones) and, for native user tasks, `processTestContext.completeUserTask(...)`.
+4. Asserts on process state with `CamundaAssert.assertThat(instance)` — completed/active elements, active
+   incidents, waiting messages, variable values.
+
+```bash
+mvn test
+```
+
+> Requires Docker running locally — Testcontainers pulls and starts `camunda/camunda` + Elasticsearch images
+> per test class. There is no Operate/Tasklist UI in this runtime; it's headless by design. To watch instances
+> visually instead, point the tests at an already-running local Camunda 8 stack via CPT's `remote` runtime mode.
+>
+> `pom.xml` pins `org.testcontainers:testcontainers` to `2.0.3` — `camunda-process-test-java:8.8.14` otherwise
+> pulls a mismatched `testcontainers:1.20.5` core against `testcontainers-elasticsearch:2.0.3`, which fails to
+> talk to newer Docker Desktop engine builds.
+
+| Test Class | Process(es) Covered | Scenarios |
+|---|---|---|
+| `OrderManagementProcessTest` | `order-management-process` | Invalid order → rejection (documents a pre-existing `UNHANDLED_ERROR_EVENT` incident bug rather than hiding it); out-of-stock → backorder timer loop; `order.process-payment` boundary error (`PAYMENT_FAILED`) handling; payment declined path; event-based gateway → customer cancellation; event-based gateway → SLA breach timer; happy-path single-item ship & deliver; delivery issue → reship; delivery issue → refund; multi-item order ships each item independently; non-interrupting 72h shipping SLA boundary firing while the shipment subprocess is still active |
+| `AirtelLoanProcessTest` | `Process_Airtel` (USSD) + `airtel-loan-capbpm-process` | USSD flow, not eligible → ends without loan application; USSD flow, eligible → completes through loan approval; CapBPM new customer, not eligible → ends at not-eligible; CapBPM existing customer, eligible → GNU credit score → CBS onboarding → disbursement |
+| `LoanApplicationFormProcessTest` | `loan-application-form-process` | Valid form data → submitted for review; invalid form data → incomplete notification |
+| `LoanRiskAssessmentProcessTest` | `loan-risk-assessment-process` | Invalid application rejected before DMN risk evaluation runs; excellent credit + low DTI → `LOW` risk → auto-approve; good credit + medium DTI → `MEDIUM` risk → manual review; poor credit → `HIGH` risk → auto-reject |
+| `MultiInstanceDemoProcessTest` | `multi-instance-demo-process` | Loop gateway repeats until `loopDone`, then runs sequential + parallel multi-instance; sequential multi-instance processes every item; parallel multi-instance processes every item |
+| `StructuredDocumentExtractIdpTest` | `structured-document-extract-idp` | Happy path: store document → extract (structured) → print result → complete |
+| `UnstructuredDocumentExtractIdpTest` | `unstructured-document-extract-idp` | Happy path: store document → extract (unstructured) → print result → complete |
+| `UnstructuredDocumentExtractScreenshotIdpTest` | `UnstructuredDocumentExtractScreenshotIDPProcess` | Signature uploaded → crops signature region from PDF; no signature uploaded → skips cropping |
+| `UnstructuredWithImageDocumentExtractIdpTest` | `unstructured-with-image-document-extract-idp` | Happy path: store document → extract (with image) → print result → complete |
