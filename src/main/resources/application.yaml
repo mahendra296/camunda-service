@@ -26,7 +26,7 @@ spring:
     enabled: false
 
 server:
-  port: 8081
+  port: 9090
 
 # ── IDP ──────────────────────────────────────────────────────────────────────
 # ExtractPdfRegionWorker shells out to pdftoppm (poppler-utils). Override with an absolute
@@ -44,6 +44,7 @@ idp:
 # (see application-local.yml), sourced from that stack's .env (ORCHESTRATION_CLIENT_ID / SECRET).
 camunda:
   client:
+    enabled: ${CAMUNDA_CLIENT_ENABLED:true}
     mode: selfmanaged
     grpc-address: grpc://${ZEEBE_HOST:localhost}:26500
     rest-address: http://${ZEEBE_HOST:localhost}:8080
@@ -53,4 +54,9 @@ camunda:
       client-secret: ${CAMUNDA_CLIENT_SECRET}
       token-url: ${CAMUNDA_TOKEN_URL}
       audience: ${CAMUNDA_TOKEN_AUDIENCE}
+    deployment:
+      enabled: ${CAMUNDA_CLIENT_DEPLOYMENT_ENABLED:false}
+    worker:
+      defaults:
+        enabled: ${CAMUNDA_CLIENT_WORKER_DEFAULTS_ENABLED:true}
 

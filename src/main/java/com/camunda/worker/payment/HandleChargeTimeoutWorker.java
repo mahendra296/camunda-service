@@ -17,17 +17,18 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>Non-interrupting: {@code task_charge_payment} continues running in parallel — the
  *       charge may still succeed or fail independently.</li>
- *   <li>This task logs the slowness and forwards a timeout token to {@code gw_complex_join}.</li>
+ *   <li>This task logs the slowness and forwards a timeout token to {@code gw_error_or_timeout}.</li>
  * </ul>
  *
- * <p>COMPLEX GATEWAY context ({@code gw_complex_join}):
+ * <p>MERGE GATEWAY context ({@code gw_error_or_timeout}):
  * <pre>
- *   boundary_payment_failed_error (PAYMENT_FAILED) ──────────────────────────┐
- *                                                                             ▼
- *   boundary_charge_timeout → HandleChargeTimeoutWorker → gw_complex_join → Log Failure → ...
+ *   boundary_payment_failed_error (PAYMENT_FAILED) ────────────────────────────┐
+ *                                                                              ▼
+ *   boundary_charge_timeout → HandleChargeTimeoutWorker → gw_error_or_timeout → Log Failure → ...
  * </pre>
- * The complex gateway uses {@code activationCondition =true} (OR-join), so it proceeds
- * as soon as either the error token or this timeout token arrives.
+ * An exclusive gateway is used as an uncontrolled merge — Zeebe does not support BPMN
+ * complex gateways — so the flow proceeds as soon as either the error token or this
+ * timeout token arrives, without waiting for the other.
  *
  * <p>Output variables:
  * <ul>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_PaymentRefund" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.45.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_PaymentRefund" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.50.1">
   <bpmn:error id="Error_PaymentFailed" name="PaymentFailed" errorCode="PAYMENT_FAILED" />
   <bpmn:error id="Error_InsufficientFunds" name="InsufficientFunds" errorCode="INSUFFICIENT_FUNDS" />
   <bpmn:process id="payment-refund-process" name="Payment and Refund Process" isExecutable="true">
@@ -27,7 +27,7 @@
       <bpmn:compensateEventDefinition id="CompDef_charge" />
     </bpmn:boundaryEvent>
     <bpmn:boundaryEvent id="boundary_payment_failed_error" attachedToRef="task_charge_payment">
-      <bpmn:outgoing>flow_error_to_complex</bpmn:outgoing>
+      <bpmn:outgoing>flow_error_to_gw_join</bpmn:outgoing>
       <bpmn:errorEventDefinition id="ErrDef_payment_failed" errorRef="Error_PaymentFailed" />
     </bpmn:boundaryEvent>
     <bpmn:boundaryEvent id="boundary_charge_timeout" cancelActivity="false" attachedToRef="task_charge_payment">
@@ -87,19 +87,18 @@
         <zeebe:taskDefinition type="payment.handle-timeout" retries="1" />
       </bpmn:extensionElements>
       <bpmn:incoming>flow_timeout_to_handle</bpmn:incoming>
-      <bpmn:outgoing>flow_timeout_handle_to_complex</bpmn:outgoing>
+      <bpmn:outgoing>flow_timeout_handle_to_gw_join</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:complexGateway id="gw_complex_join" name="Error / Timeout&#10;Join">
-      <bpmn:incoming>flow_error_to_complex</bpmn:incoming>
-      <bpmn:incoming>flow_timeout_handle_to_complex</bpmn:incoming>
-      <bpmn:outgoing>flow_complex_to_log</bpmn:outgoing>
-      <bpmn:activationCondition>=true</bpmn:activationCondition>
-    </bpmn:complexGateway>
+    <bpmn:exclusiveGateway id="gw_error_or_timeout" name="Error / Timeout&#10;Merge">
+      <bpmn:incoming>flow_error_to_gw_join</bpmn:incoming>
+      <bpmn:incoming>flow_timeout_handle_to_gw_join</bpmn:incoming>
+      <bpmn:outgoing>flow_gw_join_to_log</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="task_handle_payment_error" name="Log Payment&#10;Failure">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="payment.handle-error" retries="1" />
       </bpmn:extensionElements>
-      <bpmn:incoming>flow_complex_to_log</bpmn:incoming>
+      <bpmn:incoming>flow_gw_join_to_log</bpmn:incoming>
       <bpmn:outgoing>flow_handle_to_comp_throw</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:intermediateThrowEvent id="throw_compensation" name="Trigger&#10;Compensation">
@@ -133,10 +132,10 @@
     <bpmn:sequenceFlow id="flow_sms_to_join" sourceRef="task_send_sms_alert" targetRef="gw_inclusive_join" />
     <bpmn:sequenceFlow id="flow_loyalty_to_join" sourceRef="task_update_loyalty_points" targetRef="gw_inclusive_join" />
     <bpmn:sequenceFlow id="flow_join_to_end" sourceRef="gw_inclusive_join" targetRef="end_payment_success" />
-    <bpmn:sequenceFlow id="flow_error_to_complex" sourceRef="boundary_payment_failed_error" targetRef="gw_complex_join" />
+    <bpmn:sequenceFlow id="flow_error_to_gw_join" sourceRef="boundary_payment_failed_error" targetRef="gw_error_or_timeout" />
     <bpmn:sequenceFlow id="flow_timeout_to_handle" sourceRef="boundary_charge_timeout" targetRef="task_handle_charge_timeout" />
-    <bpmn:sequenceFlow id="flow_timeout_handle_to_complex" sourceRef="task_handle_charge_timeout" targetRef="gw_complex_join" />
-    <bpmn:sequenceFlow id="flow_complex_to_log" sourceRef="gw_complex_join" targetRef="task_handle_payment_error" />
+    <bpmn:sequenceFlow id="flow_timeout_handle_to_gw_join" sourceRef="task_handle_charge_timeout" targetRef="gw_error_or_timeout" />
+    <bpmn:sequenceFlow id="flow_gw_join_to_log" sourceRef="gw_error_or_timeout" targetRef="task_handle_payment_error" />
     <bpmn:sequenceFlow id="flow_handle_to_comp_throw" sourceRef="task_handle_payment_error" targetRef="throw_compensation" />
     <bpmn:sequenceFlow id="flow_comp_throw_to_notify" sourceRef="throw_compensation" targetRef="task_send_payment_failure" />
     <bpmn:sequenceFlow id="flow_notify_to_end_failed" sourceRef="task_send_payment_failure" targetRef="end_payment_failed" />
@@ -193,7 +192,7 @@
       <bpmndi:BPMNShape id="Shape_handle_timeout" bpmnElement="task_handle_charge_timeout">
         <dc:Bounds x="600" y="350" width="160" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_gw_complex_join" bpmnElement="gw_complex_join">
+      <bpmndi:BPMNShape id="Shape_gw_error_or_timeout" bpmnElement="gw_error_or_timeout" isMarkerVisible="true">
         <dc:Bounds x="825" y="365" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="813" y="327.5" width="74" height="27" />
@@ -288,7 +287,7 @@
         <di:waypoint x="1095" y="200" />
         <di:waypoint x="1162" y="200" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_error_to_complex" bpmnElement="flow_error_to_complex">
+      <bpmndi:BPMNEdge id="Edge_error_to_gw_join" bpmnElement="flow_error_to_gw_join">
         <di:waypoint x="580" y="258" />
         <di:waypoint x="580" y="470" />
         <di:waypoint x="850" y="470" />
@@ -298,11 +297,11 @@
         <di:waypoint x="630" y="258" />
         <di:waypoint x="630" y="350" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_timeout_handle_to_complex" bpmnElement="flow_timeout_handle_to_complex">
+      <bpmndi:BPMNEdge id="Edge_timeout_handle_to_gw_join" bpmnElement="flow_timeout_handle_to_gw_join">
         <di:waypoint x="760" y="390" />
         <di:waypoint x="825" y="390" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_complex_to_log" bpmnElement="flow_complex_to_log">
+      <bpmndi:BPMNEdge id="Edge_gw_join_to_log" bpmnElement="flow_gw_join_to_log">
         <di:waypoint x="875" y="390" />
         <di:waypoint x="940" y="390" />
       </bpmndi:BPMNEdge>
